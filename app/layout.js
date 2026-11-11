@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getUser } from '@/lib/auth';
 import { logout } from './actions';
 import TzSync from './TzSync';
+import Nav from './Nav';
 
 export const metadata = {
   title: 'Daily League',
@@ -25,15 +26,7 @@ export default async function RootLayout({ children }) {
           )}
         </header>
         <main>{children}</main>
-        {user && (
-          <nav className="tabs">
-            <Link href="/"><span>📅</span>Today</Link>
-            <Link href="/leagues"><span>🏆</span>Leagues</Link>
-            <Link href="/games"><span>🎮</span>Games</Link>
-            <Link href="/friends"><span>👥</span>Friends</Link>
-            <Link href="/me"><span>📈</span>Stats</Link>
-          </nav>
-        )}
+        {user && <Nav username={user.username} />}
       </body>
     </html>
   );

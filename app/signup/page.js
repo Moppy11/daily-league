@@ -3,11 +3,12 @@ import { redirect } from 'next/navigation';
 import { getUser } from '@/lib/auth';
 import { signup } from '../actions';
 import { Flash } from '../ui';
+import Submit from '../Submit';
 
 export default async function Page({ searchParams }) {
   const sp = await searchParams;
   const next = typeof sp.next === 'string' ? sp.next : '/';
-  if (await getUser()) redirect('/');
+  if (await getUser()) redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/');
   return (
     <section className="card narrow">
       <h1>Create your account</h1>
@@ -23,7 +24,7 @@ export default async function Page({ searchParams }) {
         <label>Password
           <input name="password" type="password" required minLength={8} autoComplete="new-password" />
         </label>
-        <button className="btn primary">Create your account</button>
+        <Submit>Create your account</Submit>
       </form>
       <p className="muted">Already playing? <Link href={`/login?next=${encodeURIComponent(next)}`}>Log in</Link></p>
     </section>

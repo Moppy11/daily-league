@@ -123,7 +123,7 @@ export default async function Profile({ params }) {
             </div>
             <div className="stats tight">
               <div><b>{formatAvg(s.game, s.avg)}</b><small>average</small></div>
-              <div><b>{formatScore(s.game, s.best)}</b><small>best</small></div>
+              <div><b>{s.game.type === 'guesses' || s.game.type === 'time' ? formatScore(s.game, s.best) : formatAvg(s.game, s.best)}</b><small>best</small></div>
               <div><b>{s.played}</b><small>played</small></div>
               <div><b>{formatAvg(s.game, s.last7.reduce((a, b) => a + b, 0) / s.last7.length)}</b><small>last 7 avg</small></div>
               <div><b>{s.current}</b><small>streak</small></div>
@@ -143,8 +143,8 @@ export default async function Profile({ params }) {
               <thead><tr><th className="left">Date</th><th className="left">Game</th><th>Score</th></tr></thead>
               <tbody>
                 {history.map((s, i) => (
-                  <tr key={i}>
-                    <td className="left">{prettyDate(s.play_date)}</td>
+                  <tr key={i} className={history[i - 1]?.play_date === s.play_date ? 'same-day' : ''}>
+                    <td className="left muted">{history[i - 1]?.play_date === s.play_date ? '' : prettyDate(s.play_date)}</td>
                     <td className="left">{games[s.game_id]?.emoji} {games[s.game_id]?.name}</td>
                     <td>{formatScore(games[s.game_id], s.score)}{s.manual ? ' ✍️' : ''}</td>
                   </tr>

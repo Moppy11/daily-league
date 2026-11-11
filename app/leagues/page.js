@@ -4,6 +4,7 @@ import { requireUser, gamesByIds } from '@/lib/auth';
 import { GAMES } from '@/lib/games';
 import { createLeague, joinLeague } from '../actions';
 import { Flash } from '../ui';
+import Submit from '../Submit';
 
 export default async function Leagues({ searchParams }) {
   const sp = await searchParams;
@@ -36,7 +37,7 @@ export default async function Leagues({ searchParams }) {
       <h2>Join a league</h2>
       <form action={joinLeague} className="card row">
         <input className="grow" name="code" required placeholder="Invite code or link" aria-label="Invite code or link" />
-        <button className="btn primary">Join</button>
+        <Submit>Join</Submit>
       </form>
 
       <h2>Create a league</h2>
@@ -52,7 +53,7 @@ export default async function Leagues({ searchParams }) {
             ))}
           </div>
         </fieldset>
-        <button className="btn primary">Create league</button>
+        <Submit>Create league</Submit>
       </form>
     </>
   );

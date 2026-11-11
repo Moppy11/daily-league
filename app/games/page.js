@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { GAMES, customToGame } from '@/lib/games';
 import { toggleGame, createCustomGame } from '../actions';
 import { Flash } from '../ui';
+import Submit from '../Submit';
 
 export default async function GamesPage({ searchParams }) {
   const sp = await searchParams;
@@ -47,13 +48,13 @@ export default async function GamesPage({ searchParams }) {
         <div className="row">
           <label className="grow">Scoring
             <select name="direction">
-              <option value="lower">Lower is better (guesses, time)</option>
-              <option value="higher">Higher is better (points)</option>
+              <option value="lower">Lower wins</option>
+              <option value="higher">Higher wins</option>
             </select>
           </label>
           <label>Unit<input name="unit" maxLength={12} placeholder="pts" size={6} /></label>
         </div>
-        <button className="btn primary">Add game</button>
+        <Submit>Add game</Submit>
         <small className="muted">Custom games use hand-typed scores. You can add them to any league you own.</small>
       </form>
     </>

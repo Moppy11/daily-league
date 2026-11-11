@@ -7,6 +7,7 @@ import { loadLeague } from '@/lib/league';
 import { standings, withPositions } from '@/lib/points';
 import { submitScore, respondInvite } from './actions';
 import { Flash, Medal } from './ui';
+import Submit from './Submit';
 
 function Landing() {
   return (
@@ -51,6 +52,7 @@ export default async function Home({ searchParams }) {
   const games = Object.values(await gamesByIds([...ids])).sort((a, b) => a.name.localeCompare(b.name));
   const todays = await q('select game_id, score, manual from scores where user_id = $1 and play_date = $2', [user.id, today]);
   const done = Object.fromEntries(todays.map((s) => [s.game_id, s]));
+  games.sort((a, b) => !!done[a.id] - !!done[b.id]); // still-to-post first
 
   // Consecutive days with at least one result, counting today if played.
   const played = new Set(dates.map((d) => d.play_date));
@@ -79,7 +81,7 @@ export default async function Home({ searchParams }) {
           <span><b>{i.inviter}</b> invited you to <b>{i.name}</b></span>
           <form action={respondInvite} className="row">
             <input type="hidden" name="league" value={i.id} />
-            <button className="btn primary small" name="answer" value="accept">Join</button>
+            <Submit className="btn primary small" name="answer" value="accept">Join</Submit>
             <button className="btn small" name="answer" value="decline">Decline</button>
           </form>
         </div>
@@ -121,7 +123,7 @@ export default async function Home({ searchParams }) {
                   ) : (
                     <input name="manual" required placeholder={manualHint(g)} aria-label={`${g.name} score`} />
                   )}
-                  <button className="btn primary small">Post score</button>
+                  <Submit className="btn primary small">Post score</Submit>
                 </form>
               )}
             </div>

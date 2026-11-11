@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { q, q1 } from '@/lib/db';
 import { getUser } from '@/lib/auth';
 import { joinLeague } from '../../actions';
+import Submit from '../../Submit';
 
 export default async function Join({ params }) {
   const { code } = await params;
@@ -29,7 +30,7 @@ export default async function Join({ params }) {
       {user ? (
         <form action={joinLeague}>
           <input type="hidden" name="code" value={code} />
-          <button className="btn primary">Join league</button>
+          <Submit>Join league</Submit>
         </form>
       ) : (
         <div className="row center">

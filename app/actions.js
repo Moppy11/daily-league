@@ -34,9 +34,10 @@ export async function signup(fd) {
   if (await q1('select 1 from users where username = $1', [username])) fail(back, 'That username is taken.');
   const hash = await bcrypt.hash(password, 10);
   const user = await q1(
-    'insert into users (username, display_name, pass_hash) values ($1, $2, $3) returning id',
+    'insert into users (username, display_name, pass_hash) values ($1, $2, $3) on conflict (username) do nothing returning id',
     [username, display, hash]
   );
+  if (!user) fail(back, 'That username is taken.');
   await createSession(user.id);
   redirect(next);
 }
@@ -174,7 +175,7 @@ export async function createLeague(fd) {
 export async function joinLeague(fd) {
   const user = await requireUser();
   // Accept either a bare code or a pasted invite link.
-  const code = str(fd, 'code').split('/').pop().toLowerCase();
+  const code = (str(fd, 'code').toLowerCase().match(/[0-9a-f]{10}/) ?? [''])[0];
   const league = await q1('select id from leagues where code = $1', [code]);
   if (!league) fail('/leagues', 'No league found for that invite code.');
   await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing', [league.id, user.id]);

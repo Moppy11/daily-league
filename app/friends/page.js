@@ -3,6 +3,7 @@ import { q } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { addFriend, respondFriend, removeFriend } from '../actions';
 import { Flash } from '../ui';
+import Submit from '../Submit';
 
 export default async function Friends({ searchParams }) {
   const sp = await searchParams;
@@ -24,7 +25,7 @@ export default async function Friends({ searchParams }) {
       <Flash sp={sp} />
       <form action={addFriend} className="card row">
         <input className="grow" name="username" required placeholder="Friend's username" aria-label="Friend's username" autoCapitalize="none" />
-        <button className="btn primary">Add friend</button>
+        <Submit>Add friend</Submit>
       </form>
 
       {incoming.length > 0 && <h2>Requests</h2>}
@@ -33,7 +34,7 @@ export default async function Friends({ searchParams }) {
           <form action={respondFriend} className="card list-row" key={r.id}>
             <input type="hidden" name="from" value={r.id} />
             <span className="grow"><b>{r.display_name}</b><small className="muted">@{r.username}</small></span>
-            <button className="btn primary small" name="answer" value="accept">Accept</button>
+            <Submit className="btn primary small" name="answer" value="accept">Accept</Submit>
             <button className="btn small" name="answer" value="decline">Decline</button>
           </form>
         ))}

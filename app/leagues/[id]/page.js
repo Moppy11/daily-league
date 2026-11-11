@@ -9,6 +9,7 @@ import { standings, gameStandings, withPositions, rankDay, POINTS } from '@/lib/
 import { inviteFriend, leaveLeague, setLeagueGames, react } from '../../actions';
 import { Flash, Medal } from '../../ui';
 import CopyLink from '../../CopyLink';
+import Submit from '../../Submit';
 
 const REACTIONS = ['👏', '🔥', '😂', '💀'];
 
@@ -43,6 +44,14 @@ export default async function LeaguePage({ params, searchParams }) {
 
   const inSeason = season === 'all' ? scores : scores.filter((s) => s.play_date.startsWith(season));
   const table = withPositions(tab === 'overall' ? standings(inSeason, games, members) : gameStandings(inSeason, games[tab], members));
+
+  // Points earned today, shown beside the table while looking at a season that includes today.
+  const showToday = season === 'all' || season === thisMonth;
+  const todayPts = {};
+  if (showToday) {
+    const tGames = tab === 'overall' ? games : { [tab]: games[tab] };
+    for (const r of standings(scores.filter((s) => s.play_date === today), tGames, members)) todayPts[r.user.id] = r.played ? r.total : null;
+  }
 
   // Winners of finished months.
   const champions = months.filter((m) => m < thisMonth).map((m) => {
@@ -105,11 +114,12 @@ export default async function LeaguePage({ params, searchParams }) {
       </div>
 
       <div className="card table-wrap">
-        <table>
+        <table className={tab === 'overall' ? '' : 'wide'}>
           <thead>
             <tr>
-              <th>#</th><th className="left">Player</th><th>Played</th><th>Wins</th>
+              <th>#</th><th className="left">Player</th><th>Played</th><th className="opt">Wins</th>
               {tab !== 'overall' && <th>Avg</th>}
+              {showToday && <th>Today</th>}
               <th>Pts</th>
             </tr>
           </thead>
@@ -117,10 +127,11 @@ export default async function LeaguePage({ params, searchParams }) {
             {table.map((r) => (
               <tr key={r.user.id} className={r.user.id === user.id ? 'me' : ''}>
                 <td><Medal pos={r.pos} /></td>
-                <td className="left"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link></td>
+                <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link></td>
                 <td>{r.played}</td>
-                <td>{r.wins}</td>
+                <td className="opt">{r.wins}</td>
                 {tab !== 'overall' && <td>{formatAvg(games[tab], r.avg)}</td>}
+                {showToday && <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
                 <td><b>{r.total}</b></td>
               </tr>
             ))}
@@ -155,6 +166,7 @@ export default async function LeaguePage({ params, searchParams }) {
       {gameList.map((g) => {
         const entries = dayScores.filter((s) => s.game_id === g.id);
         if (!entries.length) return null;
+        const waiting = date === today ? members.filter((m) => !entries.some((e) => e.user_id === m.id)) : [];
         const ranked = rankDay(entries, g.higherBetter);
         entries.sort((a, b) => ranked.get(a.user_id).rank - ranked.get(b.user_id).rank);
         return (
@@ -184,6 +196,7 @@ export default async function LeaguePage({ params, searchParams }) {
                 </form>
               </div>
             ))}
+            {waiting.length > 0 && <p className="muted small waiting">Still to play: {waiting.map((m) => m.display_name).join(', ')}</p>}
           </div>
         );
       })}
@@ -195,7 +208,7 @@ export default async function LeaguePage({ params, searchParams }) {
           <select name="friend" className="grow" aria-label="Friend to invite">
             {friends.map((f) => <option key={f.id} value={f.id}>{f.display_name}</option>)}
           </select>
-          <button className="btn primary">Invite friend</button>
+          <Submit>Invite friend</Submit>
         </form>
       )}
       {isOwner && (
@@ -210,7 +223,7 @@ export default async function LeaguePage({ params, searchParams }) {
                 </label>
               ))}
             </div>
-            <button className="btn primary">Save games</button>
+            <Submit>Save games</Submit>
           </form>
         </details>
       )}
@@ -222,7 +235,7 @@ export default async function LeaguePage({ params, searchParams }) {
             {isOwner && members.length === 1 ? 'You are the only member, so this closes the league.'
               : isOwner ? 'The league passes to the next longest-standing member.' : 'You can rejoin later with the invite link.'}
           </p>
-          <button className="btn danger">Leave {league.name}</button>
+          <Submit className="btn danger">Leave {league.name}</Submit>
         </form>
       </details>
     </>
