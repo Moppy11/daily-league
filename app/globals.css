@@ -83,6 +83,8 @@ details[open] summary { margin-bottom: 8px; }
   padding: 18px; color: var(--text); background: var(--card);
 }
 .logout-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.score-notice { margin: 0 0 12px; }
+.manual-score { display: block; color: var(--muted); }
 
 .flash { padding: 10px 14px; border-radius: 10px; font-size: .92rem; margin: 10px 0; border: 1px solid; }
 .flash.err { color: var(--err); border-color: var(--err); }
