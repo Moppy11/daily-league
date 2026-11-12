@@ -1,7 +1,7 @@
 import './globals.css';
 import Link from 'next/link';
 import { getUser } from '@/lib/auth';
-import { logout } from './actions';
+import LogoutButton from './LogoutButton';
 import TzSync from './TzSync';
 import Nav from './Nav';
 
@@ -19,11 +19,7 @@ export default async function RootLayout({ children }) {
         <TzSync />
         <header className="top">
           <Link href="/" className="brand">🏆 Daily League</Link>
-          {user && (
-            <form action={logout}>
-              <button className="link">Log out</button>
-            </form>
-          )}
+          {user && <LogoutButton />}
         </header>
         <main>{children}</main>
         {user && <Nav username={user.username} />}

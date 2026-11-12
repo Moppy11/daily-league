@@ -78,6 +78,11 @@ details[open] summary { margin-bottom: 8px; }
 .btn.danger { color: var(--err); border-color: var(--err); }
 .btn.small { padding: 6px 12px; font-size: .88rem; }
 .link { background: none; border: 0; color: var(--muted); font: inherit; font-size: .88rem; cursor: pointer; padding: 4px; }
+.logout-dialog {
+  max-width: calc(100% - 32px); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px; color: var(--text); background: var(--card);
+}
+.logout-dialog::backdrop { background: rgb(0 0 0 / 45%); }
 
 .flash { padding: 10px 14px; border-radius: 10px; font-size: .92rem; margin: 10px 0; border: 1px solid; }
 .flash.err { color: var(--err); border-color: var(--err); }
