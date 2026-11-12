@@ -41,6 +41,18 @@ test('formatting, manual entry, puzzle dates', () => {
   assert.equal(expectedPuzzle(builtin('connections'), '2023-06-12'), 1);
 });
 
+test('Noillirk share text, display and higher-is-better ranking', () => {
+  const share = 'Noillirk 🎈 The Daily Climb · No. 47 · 3,163m\n\n🟩🟥🟧🟩🟨🟦🟨\n\nClimb today\'s prompts: https://playdaily.org/noillirk.';
+  const game = builtin('noillirk');
+  assert.deepEqual(game.parse(share), { puzzleNo: 47, score: 3163 });
+  assert.deepEqual(game.parse('Noillirk The Daily Climb · No. 48 · 0m'), { puzzleNo: 48, score: 0 });
+  assert.equal(game.parse(share.replace('3,163m', '3,16m')), null);
+  assert.equal(p('krillion', share), null);
+  assert.equal(formatScore(game, 3163), '3,163 m');
+  const ranking = rankDay([{ user_id: 1, score: 3000 }, { user_id: 2, score: 3163 }], game.higherBetter);
+  assert.equal(ranking.get(2).points, 10);
+});
+
 test('rank points and standings', () => {
   const day = rankDay([{ user_id: 1, score: 3 }, { user_id: 2, score: 3 }, { user_id: 3, score: 5 }], false);
   assert.deepEqual([day.get(1).points, day.get(2).points, day.get(3).points], [10, 10, 5]);
