@@ -103,3 +103,26 @@ test('Size It Up reads the shared total and ranks higher scores first', () => {
   const ranking = rankDay([{ user_id: 1, score: 305 }, { user_id: 2, score: 400 }], game.higherBetter);
   assert.equal(ranking.get(2).points, 10);
 });
+
+test('Daily Holes: score to par, squares and link must agree', () => {
+  const share = 'Daily Holes — Round #316 · SNIPER\nCragcross Head · -8 (29)\n🟦🟦⬜\n🟦⬜⬜\n🟩⬜🟩\nLongest 289 yds · 9/15 pured\nhttps://dailyholes.com/?beat=-8&d=2026-11-12&by=Moppy';
+  const game = builtin('dailyholes');
+  assert.deepEqual(game.parse(share), { puzzleNo: 316, score: -8 });
+  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n')), { puzzleNo: 316, score: -8 });
+  assert.equal(puzzleDate(game, 316), '2026-11-12');
+  assert.deepEqual(game.parse('Daily Holes — Round #317\nFernmoor Links · E (37)\n⬜⬜⬜\n🟩🟨⬜\n⬜⬜⬜\nLongest 250 yds · 3/20 pured'), { puzzleNo: 317, score: 0 });
+  assert.deepEqual(game.parse('Daily Holes — Round #317\nFernmoor Links · +5 (42)\n⬜🟨⬜\n🟧🟨⬜\n⬜🟨⬜\nLongest 250 yds · 3/20 pured'), { puzzleNo: 317, score: 5 });
+  assert.equal(game.parse(share.replace('-8 (29)', '-15 (22)').replace('beat=-8', 'beat=-15')), null); // squares can't give that
+  assert.equal(game.parse(share.replace('-8 (29)', '-3 (34)')), null);          // score edited, squares and link disagree
+  assert.equal(game.parse(share.replace('-8 (29)', '-9 (28)')), null);          // link disagrees
+  assert.equal(game.parse(share.replace('d=2026-11-12', 'd=2026-11-01')), null); // date disagrees with round
+  assert.equal(game.parse(share.replace('🟩⬜🟩', '🟩⬜')), null);               // a hole missing
+  assert.equal(game.parse(share.replace('Round #316 · SNIPER', 'practice round')), null);
+  assert.equal(formatScore(game, -8), '-8');
+  assert.equal(formatScore(game, 0), 'E');
+  assert.equal(formatScore(game, 3), '+3');
+  assert.equal(parseManual(game, '-4'), -4);
+  assert.equal(parseManual(game, 'E'), 0);
+  const ranking = rankDay([{ user_id: 1, score: -8 }, { user_id: 2, score: 2 }], game.higherBetter);
+  assert.equal(ranking.get(1).points, 10);
+});
