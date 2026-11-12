@@ -181,6 +181,7 @@ function HowTo() {
 function manualHint(g) {
   if (g.type === 'guesses') return `Guesses (1–${g.max}, or X)`;
   if (g.type === 'time') return 'Time, e.g. 1:23';
+  if (g.type === 'factor') return 'Score, e.g. 14.1';
   if (g.type === 'par') return 'Score to par, e.g. -3, E or +2';
   if (g.type === 'points') return `Score (0–${g.max})`;
   return `Score (${g.unit})`;

@@ -126,3 +126,19 @@ test('Daily Holes: score to par, squares and link must agree', () => {
   const ranking = rankDay([{ user_id: 1, score: -8 }, { user_id: 2, score: 2 }], game.higherBetter);
   assert.equal(ranking.get(1).points, 10);
 });
+
+test('Fermi: score must be the geometric mean of the three rounds', () => {
+  const share = 'Fermi · No. 109\n01 ↓ 60.4×\n02 ↑ 13.1×\n03 ↑ 3.57×\n─────────\n14.1× score · top 60%\n<https://fermi.gg/s/daily>';
+  const game = builtin('fermi');
+  assert.deepEqual(game.parse(share), { puzzleNo: 109, score: 14.1 });
+  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n')), { puzzleNo: 109, score: 14.1 });
+  assert.equal(puzzleDate(game, 109), '2026-11-12');
+  assert.deepEqual(game.parse('Fermi · No. 110\n01 = 1.00×\n02 ↑ 1,500×\n03 —\n─────────\n100× score\nfermi.gg'), { puzzleNo: 110, score: 100 });
+  assert.equal(game.parse(share.replace('14.1× score', '2.10× score')), null); // score edited
+  assert.equal(game.parse(share.replace('01 ↓ 60.4×', '01 ↓ 1.04×')), null);    // a round edited
+  assert.equal(game.parse(share.replace('03 ↑ 3.57×\n', '')), null);           // a round removed
+  assert.equal(formatScore(game, 14.1), '14.1×');
+  assert.equal(parseManual(game, '14.1×'), 14.1);
+  const ranking = rankDay([{ user_id: 1, score: 14.1 }, { user_id: 2, score: 2.5 }], game.higherBetter);
+  assert.equal(ranking.get(2).points, 10);
+});
