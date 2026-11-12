@@ -68,6 +68,9 @@ export default async function LeaguePage({ params, searchParams }) {
         [dayScores.map((s) => s.id), user.id]
       )
     : [];
+  const pastes = dayScores.length
+    ? Object.fromEntries((await q('select id, raw from scores where id = any($1) and raw is not null', [dayScores.map((s) => s.id)])).map((r) => [r.id, r.raw]))
+    : {};
   const reactions = {};
   for (const r of reactionRows) (reactions[r.score_id] ??= {})[r.emoji] = r;
   const byId = Object.fromEntries(members.map((m) => [m.id, m]));
@@ -100,6 +103,8 @@ export default async function LeaguePage({ params, searchParams }) {
       </div>
       <Flash sp={sp} />
 
+      <div className="cols">
+      <div>
       <div className="pills" aria-label="Season">
         {months.slice(0, 6).map((m) => (
           <Link key={m} href={href({ season: m })} className={season === m ? 'on' : ''}>{m === thisMonth ? 'This month' : monthLabel(m)}</Link>
@@ -140,6 +145,7 @@ export default async function LeaguePage({ params, searchParams }) {
       </div>
       <p className="muted small">
         Each day, each game: 1st gets {POINTS[0]}, then {POINTS.slice(1).join(', ')}, and 1 for anyone else who played. Ties share the better place.
+        Tap a player to see their profile or add them as a friend.
       </p>
 
       {champions.length > 0 && (
@@ -157,6 +163,8 @@ export default async function LeaguePage({ params, searchParams }) {
         </>
       )}
 
+      </div>
+      <div>
       <div className="daynav">
         <Link href={href({ date: addDays(date, -1) })} aria-label="Previous day">←</Link>
         <h2>{date === today ? 'Today' : prettyDate(date)}</h2>
@@ -176,9 +184,9 @@ export default async function LeaguePage({ params, searchParams }) {
               <div className="result" key={s.id}>
                 <Medal pos={ranked.get(s.user_id).rank} />
                 <span className="grow">
-                  {byId[s.user_id].display_name}
-                  {s.manual && <small className="manual-score">✍️ Entered by hand</small>}
-                  {s.flagged && <span title="Puzzle number differs from other players"> ⚠️</span>}
+                  <Link className="player" href={`/u/${byId[s.user_id].username}`}>{byId[s.user_id].display_name}</Link>
+                  {s.manual && <small className="manual-score">✍️ Entered by hand, not verified</small>}
+                  {s.flagged && <small className="manual-score">⚠️ Puzzle number differs from other players</small>}
                 </span>
                 <b>{formatScore(g, s.score)}</b>
                 <span className="plus">+{ranked.get(s.user_id).points}</span>
@@ -194,12 +202,21 @@ export default async function LeaguePage({ params, searchParams }) {
                     );
                   })}
                 </form>
+                {pastes[s.id] && (
+                  <details className="paste">
+                    <summary>See what was pasted</summary>
+                    <pre>{pastes[s.id]}</pre>
+                  </details>
+                )}
               </div>
             ))}
             {waiting.length > 0 && <p className="muted small waiting">Still to play: {waiting.map((m) => m.display_name).join(', ')}</p>}
           </div>
         );
       })}
+
+      </div>
+      </div>
 
       <h2>Manage</h2>
       {friends.length > 0 && (

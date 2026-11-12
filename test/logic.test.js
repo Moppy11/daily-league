@@ -1,17 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { builtin, formatScore, parseManual, expectedPuzzle } from '../lib/games.js';
+import { builtin, formatScore, parseManual, expectedPuzzle, puzzleDate } from '../lib/games.js';
 import { rankDay, standings, withPositions } from '../lib/points.js';
 
 const p = (id, t) => builtin(id).parse(t);
 
 test('share text parsers', () => {
-  assert.deepEqual(p('wordle', 'Wordle 1,234 4/6\n\n⬛🟨⬛⬛⬛\n🟩🟩🟩🟩🟩'), { puzzleNo: 1234, score: 4 });
-  assert.deepEqual(p('wordle', 'Wordle 1,234 X/6*'), { puzzleNo: 1234, score: 7 });
+  const g = '⬛🟨⬛⬛⬛', win = '🟩🟩🟩🟩🟩';
+  assert.deepEqual(p('wordle', `Wordle 1,234 4/6\n\n${g}\n${g}\n${g}\n${win}`), { puzzleNo: 1234, score: 4 });
+  assert.deepEqual(p('wordle', `Wordle 1,234 X/6*\n\n${[g, g, g, g, g, g].join('\n')}`), { puzzleNo: 1234, score: 7 });
+  // Edited pastes: score changed without the grid, missing grid, grid that never solves.
+  assert.equal(p('wordle', `Wordle 1,234 2/6\n\n${g}\n${g}\n${g}\n${win}`), null);
+  assert.equal(p('wordle', 'Wordle 1,234 2/6'), null);
+  assert.equal(p('wordle', `Wordle 1,234 2/6\n\n${g}\n${g}`), null);
+  assert.equal(p('wordle', `Wordle 1,234 3/6\n\n${win}\n${g}\n${win}`), null);
   assert.equal(p('wordle', 'I got it in 2'), null);
   assert.deepEqual(p('connections', 'Connections\nPuzzle #500\n🟨🟨🟨🟨\n🟩🟪🟩🟩\n🟩🟩🟩🟩\n🟦🟦🟦🟦\n🟪🟪🟪🟪'), { puzzleNo: 500, score: 1 });
   assert.deepEqual(p('strands', 'Strands #200\n“Theme”\n💡🔵🔵🟡🔵💡🔵'), { puzzleNo: 200, score: 2 });
-  assert.deepEqual(p('mini', 'I solved the 11/11/2026 New York Times Mini Crossword in 1:05!'), { puzzleNo: null, score: 65 });
+  assert.deepEqual(p('mini', 'I solved the 11/11/2026 New York Times Mini Crossword in 1:05!'), { puzzleNo: 2506, score: 65 });
+  assert.equal(puzzleDate(builtin('mini'), 2506), '2026-11-11');
+  assert.deepEqual(p('nerdle', 'nerdlegame 1034 4/6\n\n⬛🟪'), { puzzleNo: 1034, score: 4 });
+  assert.deepEqual(p('quordle', 'Daily Quordle 1023\n4️⃣5️⃣\n🟥7️⃣\nm-w.com/games/quordle/'), { puzzleNo: 1023, score: 26 });
+  assert.deepEqual(p('globle', '🌎 Nov 12, 2026 🌍\n🔥 3 | Avg. Guesses: 6\n🟨🟧🟥🟩 = 4\n\nhttps://globle-game.com'), { puzzleNo: null, score: 4 });
+  assert.deepEqual(p('travle', '#travle #700 +2\n✅🟧✅'), { puzzleNo: 700, score: 2 });
+  assert.deepEqual(p('travle', '#travle #700 +0 (Perfect)'), { puzzleNo: 700, score: 0 });
+  assert.deepEqual(p('guessthegame', '#GuessTheGame #900\n\n🎮 🟥 🟨 🟩 ⬜ ⬜ ⬜'), { puzzleNo: 900, score: 3 });
   assert.deepEqual(p('framed', 'Framed #900\n🎥 🟥 🟥 🟩 ⬛ ⬛ ⬛'), { puzzleNo: 900, score: 3 });
   assert.deepEqual(p('framed', 'Framed #900\n🎥 🟥 🟥 🟥 🟥 🟥 🟥'), { puzzleNo: 900, score: 7 });
   assert.deepEqual(p('timeguessr', 'TimeGuessr #800 42,105/50,000\n🌎🟩🟩🟩'), { puzzleNo: 800, score: 42105 });
@@ -20,13 +33,19 @@ test('share text parsers', () => {
   assert.deepEqual(p('worldle', '#Worldle #1500 (11.11.2026) 3/6 (100%)'), { puzzleNo: 1500, score: 3 });
 });
 
-test('krillion formats', () => {
-  assert.deepEqual(p('krillion', 'Krillion #119 🦐\n265\n\n🦑🏮🐟⬛🦑⬛🐟'), { puzzleNo: 119, score: 265 });
-  assert.deepEqual(p('krillion', 'Krillion Dive #42\n540/700 · 5,400m\n🟣🔵🟢🟡🟠🔴🟣'), { puzzleNo: 42, score: 540 });
-  assert.deepEqual(p('krillion', 'Krillion #42 — 540 pts'), { puzzleNo: 42, score: 540 });
-  assert.deepEqual(p('krillion', 'Krillion daily: depth 5,400m'), { puzzleNo: null, score: 540 });
-  assert.equal(p('krillion', 'Krillion 900/700'), null);
+test('krillion: exact daily format, emoji must add up to the score', () => {
+  const real = 'Krillion #119 🦐\n265\n\n🦑🏮🐟⬛🦑⬛🐟';
+  assert.deepEqual(p('krillion', real), { puzzleNo: 119, score: 265 });
+  assert.deepEqual(p('krillion', real.replaceAll('\n', '\r\n') + '\r\n\r\nhttps://krillion.io'), { puzzleNo: 119, score: 265 });
+  assert.deepEqual(p('krillion', 'Krillion #120 🦐\n700\n\n🌟🌟🌟🌟🌟🌟🌟'), { puzzleNo: 120, score: 700 });
+  assert.equal(p('krillion', real.replace('265', '565')), null);            // score edited
+  assert.equal(p('krillion', real.replace('⬛🐟', '🐟')), null);              // a round removed
+  assert.equal(p('krillion', real.replace('Krillion #', 'Krillion ⟲ #')), null); // archive dive
+  assert.equal(p('krillion', real.replace('Krillion #', 'Krillion ∞ #')), null); // unlimited mode
+  assert.equal(p('krillion', 'Krillion #119 🦐\n265'), null);
   assert.equal(p('krillion', 'Wordle 1,234 4/6'), null);
+  assert.equal(puzzleDate(builtin('krillion'), 119), '2026-11-11');
+  assert.equal(expectedPuzzle(builtin('krillion'), '2026-11-12'), 120);
 });
 
 test('formatting, manual entry, puzzle dates', () => {
@@ -37,6 +56,7 @@ test('formatting, manual entry, puzzle dates', () => {
   assert.equal(parseManual(builtin('wordle'), '9'), null);
   assert.equal(parseManual(builtin('queens'), '1:23'), 83);
   assert.equal(parseManual(builtin('krillion'), '701'), null);
+  assert.equal(expectedPuzzle(builtin('noillirk'), '2026-11-13'), 48);
   assert.equal(expectedPuzzle(builtin('wordle'), '2024-03-15'), 1000);
   assert.equal(expectedPuzzle(builtin('connections'), '2023-06-12'), 1);
 });
@@ -45,7 +65,8 @@ test('Noillirk share text, display and higher-is-better ranking', () => {
   const share = 'Noillirk 🎈 The Daily Climb · No. 47 · 3,163m\n\n🟩🟥🟧🟩🟨🟦🟨\n\nClimb today\'s prompts: https://playdaily.org/noillirk.';
   const game = builtin('noillirk');
   assert.deepEqual(game.parse(share), { puzzleNo: 47, score: 3163 });
-  assert.deepEqual(game.parse('Noillirk The Daily Climb · No. 48 · 0m'), { puzzleNo: 48, score: 0 });
+  assert.deepEqual(game.parse('Noillirk The Daily Climb · No. 48 · 0m\n\n⬛⬛⬛⬛⬛⬛⬛'), { puzzleNo: 48, score: 0 });
+  assert.equal(game.parse('Noillirk The Daily Climb · No. 48 · 9,999m'), null);
   assert.equal(game.parse(share.replace('3,163m', '3,16m')), null);
   assert.equal(p('krillion', share), null);
   assert.equal(formatScore(game, 3163), '3,163 m');
@@ -72,8 +93,10 @@ test('rank points and standings', () => {
 test('Size It Up reads the shared total and ranks higher scores first', () => {
   const share = 'Magnitudle — Size It Up\n2026-11-12\n\nScore: 305/500\n\n🟥🟥⬜⬜⬜ 39\n🟥🟥🟥🟥⬜ 83\n🟥🟥🟥🟥⬜ 89\n⬜⬜⬜⬜⬜ 8\n🟥🟥🟥🟥⬜ 86\n\nhttps://magnitudle.com/size-it-up';
   const game = builtin('size-it-up');
-  assert.deepEqual(game.parse(share), { puzzleNo: null, score: 305 });
-  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n').replace('305/500', '500/500')), { puzzleNo: null, score: 500 });
+  assert.deepEqual(game.parse(share), { puzzleNo: 2507, score: 305 });
+  assert.equal(puzzleDate(game, 2507), '2026-11-12');
+  assert.equal(game.parse(share.replace('305/500', '405/500')), null); // total edited, rounds no longer add up
+  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n')), { puzzleNo: 2507, score: 305 });
   assert.equal(game.parse(share.replace('305/500', '501/500')), null);
   assert.equal(game.parse(share.replace('305/500', '305/600')), null);
   assert.equal(formatScore(game, 305), '305/500');

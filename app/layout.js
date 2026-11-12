@@ -19,10 +19,10 @@ export default async function RootLayout({ children }) {
         <TzSync />
         <header className="top">
           <Link href="/" className="brand">🏆 Daily League</Link>
+          {user && <Nav username={user.username} />}
           {user && <LogoutButton />}
         </header>
         <main>{children}</main>
-        {user && <Nav username={user.username} />}
       </body>
     </html>
   );

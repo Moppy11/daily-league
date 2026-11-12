@@ -22,7 +22,7 @@ function Landing() {
         <Link className="btn" href="/login">Log in</Link>
       </div>
       <ul className="features">
-        <li><b>Paste to score.</b> Copy the game&apos;s share text and paste it in. Results lock once posted.</li>
+        <li><b>Paste to score.</b> Tap Share in the game and paste the result. It&apos;s checked against today&apos;s puzzle, then locked.</li>
         <li><b>Leagues.</b> Invite friends with a link. An overall table plus one for each game.</li>
         <li><b>Monthly seasons.</b> A fresh race every month, with an all-time table alongside.</li>
         <li><b>Your stats.</b> Averages, bests, streaks and history for every game you play.</li>
@@ -90,13 +90,9 @@ export default async function Home({ searchParams }) {
         <Link href="/friends" className="card notice">You have {requests[0].n} friend request{requests[0].n > 1 ? 's' : ''} →</Link>
       )}
 
+      <div className="cols today">
+      <div>
       <h2>Today&apos;s games</h2>
-      {games.some((g) => !done[g.id]) && (
-        <p className="muted small score-notice">
-          Use <strong>Share result</strong> on the game&apos;s website and paste the full result here.
-          Hand-entered scores are marked <strong>✍️ Entered by hand</strong> for everyone in your league to see.
-        </p>
-      )}
       {games.length === 0 && (
         <div className="card empty">
           <p>You haven&apos;t added any games yet.</p>
@@ -119,7 +115,7 @@ export default async function Home({ searchParams }) {
                   <input type="hidden" name="game" value={g.id} />
                   {g.parse ? (
                     <>
-                      <textarea name="text" rows={2} placeholder={g.hint} aria-label={`${g.name} share text`} />
+                      <textarea name="text" rows={2} placeholder={`Paste your ${g.name} result here`} aria-label={`${g.name} share text`} />
                       <details>
                         <summary>No share text? Enter it by hand</summary>
                         <input name="manual" placeholder={manualHint(g)} aria-label={`${g.name} score`} />
@@ -135,8 +131,11 @@ export default async function Home({ searchParams }) {
           );
         })}
       </div>
-      {games.length > 0 && <p className="muted small">Scores lock once posted and can only be posted for today.</p>}
+      {games.length > 0 && <p className="muted small">Scores lock once posted and can only be posted for today&apos;s puzzle.</p>}
 
+      </div>
+      <div>
+      <HowTo />
       <h2>Your leagues</h2>
       {leagues.length === 0 && (
         <div className="card empty">
@@ -155,7 +154,27 @@ export default async function Home({ searchParams }) {
           </Link>
         );
       })}
+      </div>
+      </div>
     </>
+  );
+}
+
+function HowTo() {
+  return (
+    <section className="card howto" aria-labelledby="howto-title">
+      <h2 id="howto-title">How to post a score</h2>
+      <ol>
+        <li>Finish today&apos;s game on its own website.</li>
+        <li>Tap the game&apos;s <b>Share</b> button. It copies your result.</li>
+        <li>Paste it here <b>exactly as copied</b> and tap <b>Post score</b>.</li>
+      </ol>
+      <p className="warn">
+        <b>Don&apos;t type or edit your result.</b> Pastes are checked against the game&apos;s own format and today&apos;s
+        puzzle, and your league can open exactly what you pasted. Hand-typed scores can&apos;t be verified, so they
+        are flagged <b>✍️ Entered by hand</b> for everyone to see.
+      </p>
+    </section>
   );
 }
 

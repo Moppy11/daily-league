@@ -1,8 +1,14 @@
 import { notFound } from 'next/navigation';
 import { q, q1 } from '@/lib/db';
-import { requireUser, userToday, gamesByIds, canSee } from '@/lib/auth';
+import Link from 'next/link';
+import { getUser, userToday, gamesByIds, canSeeStats, relationship } from '@/lib/auth';
 import { formatScore, formatAvg } from '@/lib/games';
 import { addDays, prettyDate } from '@/lib/dates';
+import { setVisibility } from '../../actions';
+import { Flash } from '../../ui';
+import CopyLink from '../../CopyLink';
+import FriendButton from '../../FriendButton';
+import Submit from '../../Submit';
 
 function streaks(dates, today) {
   const set = new Set(dates);
@@ -33,14 +39,44 @@ function Spark({ values, higherBetter }) {
   );
 }
 
-export default async function Profile({ params }) {
+export default async function Profile({ params, searchParams }) {
   const { username } = await params;
-  const viewer = await requireUser(`/u/${username}`);
-  const person = await q1('select id, username, display_name, created_at from users where username = $1', [username.toLowerCase()]);
+  const sp = await searchParams;
+  const viewer = await getUser(); // profiles can be opened from a shared link without an account
+  const person = await q1('select id, username, display_name, stats_visibility from users where username = $1', [username.toLowerCase()]);
   if (!person) notFound();
-  const self = person.id === viewer.id;
-  if (!(await canSee(viewer.id, person.id))) {
-    return <section className="card narrow"><h1>{person.display_name}</h1><p>Add @{person.username} as a friend or share a league to see their stats.</p></section>;
+  const self = viewer?.id === person.id;
+  const rel = viewer ? await relationship(viewer.id, person.id) : 'none';
+  const back = `/u/${person.username}`;
+  const head = (streak) => (
+    <>
+      <div className="headline">
+        <div>
+          <h1>{person.display_name}</h1>
+          <p className="muted">@{person.username}</p>
+        </div>
+        {streak !== null && <div className="streak">🔥 {streak}<small>day streak</small></div>}
+      </div>
+      <Flash sp={sp} />
+      <div className="row profile-actions">
+        <FriendButton viewer={viewer} person={person} rel={rel} back={back} />
+        <CopyLink path={back} label={self ? 'Share my profile' : 'Share profile'} title={`${person.display_name} on Daily League`} />
+      </div>
+    </>
+  );
+
+  if (!(await canSeeStats(viewer, person))) {
+    return (
+      <>
+        {head(null)}
+        <section className="card empty">
+          <p>🔒 {person.stats_visibility === 'private'
+            ? `${person.display_name} keeps their stats private.`
+            : `${person.display_name}'s stats are only visible to friends.`}</p>
+          {!viewer && <p className="muted">Already playing? <Link href={`/login?next=${encodeURIComponent(back)}`}>Log in</Link></p>}
+        </section>
+      </>
+    );
   }
 
   const today = await userToday();
@@ -63,7 +99,7 @@ export default async function Profile({ params }) {
 
   // Head-to-head on days you both played the same game.
   let h2h = null;
-  if (!self) {
+  if (viewer && !self) {
     const mine = await q('select game_id, play_date, score from scores where user_id = $1', [viewer.id]);
     const theirs = new Map(scores.map((s) => [s.game_id + '|' + s.play_date, s.score]));
     const rows = {};
@@ -83,19 +119,28 @@ export default async function Profile({ params }) {
 
   return (
     <>
-      <div className="headline">
-        <div>
-          <h1>{person.display_name}</h1>
-          <p className="muted">@{person.username}</p>
-        </div>
-        <div className="streak">🔥 {all.current}<small>day streak</small></div>
-      </div>
+      {head(all.current)}
+      {self && (
+        <form action={setVisibility} className="card row privacy">
+          <label className="grow">Who can see your stats page
+            <select name="visibility" defaultValue={person.stats_visibility}>
+              <option value="public">Anyone with the link</option>
+              <option value="friends">Friends only</option>
+              <option value="private">Only me</option>
+            </select>
+          </label>
+          <Submit className="btn">Save</Submit>
+          <small className="muted full">Scores you post still appear in the leagues you&apos;ve joined, whatever you choose here.</small>
+        </form>
+      )}
       <div className="stats">
         <div><b>{scores.length}</b><small>results posted</small></div>
         <div><b>{new Set(scores.map((s) => s.play_date)).size}</b><small>days played</small></div>
         <div><b>{all.longest}</b><small>longest streak</small></div>
       </div>
 
+      <div className="cols">
+      <div>
       {h2h && (
         <>
           <h2>You vs {person.display_name}</h2>
@@ -135,6 +180,8 @@ export default async function Profile({ params }) {
         ))}
       </div>
 
+      </div>
+      <div>
       {history.length > 0 && (
         <>
           <h2>Recent results</h2>
@@ -154,6 +201,8 @@ export default async function Profile({ params }) {
           </div>
         </>
       )}
+      </div>
+      </div>
     </>
   );
 }

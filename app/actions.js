@@ -6,8 +6,8 @@ import { revalidatePath } from 'next/cache';
 import { randomBytes } from 'node:crypto';
 import { q, q1 } from '@/lib/db';
 import { createSession, destroySession, requireUser, userToday, gamesByIds, canSee } from '@/lib/auth';
-import { builtin, parseManual, expectedPuzzle } from '@/lib/games';
-import { addDays, todayIn } from '@/lib/dates';
+import { parseManual, expectedPuzzle, puzzleDate } from '@/lib/games';
+import { addDays, todayIn, prettyDate } from '@/lib/dates';
 
 const str = (fd, k) => String(fd.get(k) ?? '').trim();
 
@@ -99,14 +99,15 @@ export async function submitScore(fd) {
   if (!game) fail('/', 'Unknown game.');
 
   // The day is the player's local day, but never more than a day away from UTC.
-  const date = await userToday();
+  const today = await userToday();
+  let date = today;
   const utc = todayIn('UTC');
   if (date < addDays(utc, -1) || date > addDays(utc, 1)) fail('/', 'Your device date looks wrong.');
 
   let score = null, puzzleNo = null, manual = false, flagged = false;
   if (text && game.parse) {
     const parsed = game.parse(text);
-    if (!parsed) fail('/', `That doesn't look like a ${game.name} result. Paste the text from the game's Share button, or enter the score manually.`);
+    if (!parsed) fail('/', `That isn't a complete ${game.name} result. Use the game's Share button and paste everything it copies, unedited.`);
     ({ score, puzzleNo } = parsed);
   } else {
     score = parseManual(game, manualInput);
@@ -116,10 +117,12 @@ export async function submitScore(fd) {
 
   if (puzzleNo !== null) {
     // Reject results from a different day's puzzle.
-    const expected = expectedPuzzle(game, date);
+    const expected = expectedPuzzle(game, today);
     if (expected !== null && Math.abs(puzzleNo - expected) > 1) {
-      fail('/', `That is ${game.name} #${puzzleNo}, which isn't today's puzzle.`);
+      fail('/', `That ${game.name} result isn't from today's puzzle.`);
     }
+    // File the result under the day its puzzle belongs to, so a league always compares the same puzzle.
+    date = puzzleDate(game, puzzleNo) ?? today;
     // Where the puzzle number can't be worked out, compare with what others posted today.
     if (expected === null) {
       const other = await q1(
@@ -141,9 +144,9 @@ export async function submitScore(fd) {
      values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (user_id, game_id, play_date) do nothing returning id`,
     [user.id, id, date, score, puzzleNo, manual ? null : text, manual, flagged]
   );
-  if (!res.length) fail('/', `You've already submitted ${game.name} today. Scores are locked once posted.`);
+  if (!res.length) fail('/', `You've already submitted ${game.name} for ${date === today ? 'today' : prettyDate(date)}. Scores are locked once posted.`);
   await q('insert into user_games (user_id, game_id) values ($1, $2) on conflict do nothing', [user.id, id]);
-  ok('/', `${game.name} score saved.`);
+  ok('/', date === today ? `${game.name} score saved.` : `${game.name} score saved for ${prettyDate(date)}.`);
 }
 
 /* ---------- leagues ---------- */
@@ -257,22 +260,23 @@ export async function respondInvite(fd) {
 export async function addFriend(fd) {
   const user = await requireUser();
   const username = str(fd, 'username').toLowerCase().replace(/^@/, '');
+  const back = fd.get('back') ? safeNext(str(fd, 'back')) : '/friends';
   const other = await q1('select id, display_name from users where username = $1', [username]);
-  if (!other) fail('/friends', `No player called @${username}.`);
-  if (other.id === user.id) fail('/friends', "That's you.");
+  if (!other) fail(back, `No player called @${username}.`);
+  if (other.id === user.id) fail(back, "That's you.");
   const existing = await q1(
     'select user_id, status from friendships where (user_id = $1 and friend_id = $2) or (user_id = $2 and friend_id = $1)',
     [user.id, other.id]
   );
-  if (existing?.status === 'accepted') fail('/friends', 'You are already friends.');
-  if (existing && existing.user_id === user.id) fail('/friends', 'Request already sent.');
+  if (existing?.status === 'accepted') fail(back, 'You are already friends.');
+  if (existing && existing.user_id === user.id) fail(back, 'Request already sent.');
   if (existing) {
     // They had already asked us: accept.
     await q(`update friendships set status = 'accepted' where user_id = $1 and friend_id = $2`, [other.id, user.id]);
-    ok('/friends', `You and ${other.display_name} are now friends.`);
+    ok(back, `You and ${other.display_name} are now friends.`);
   }
   await q('insert into friendships (user_id, friend_id) values ($1, $2)', [user.id, other.id]);
-  ok('/friends', 'Friend request sent.');
+  ok(back, 'Friend request sent.');
 }
 
 export async function respondFriend(fd) {
@@ -283,6 +287,7 @@ export async function respondFriend(fd) {
   } else {
     await q(`delete from friendships where user_id = $1 and friend_id = $2 and status = 'pending'`, [from, user.id]);
   }
+  if (fd.get('back')) redirect(safeNext(str(fd, 'back')));
   revalidatePath('/friends');
 }
 
@@ -294,6 +299,14 @@ export async function removeFriend(fd) {
     [user.id, other]
   );
   revalidatePath('/friends');
+}
+
+export async function setVisibility(fd) {
+  const user = await requireUser();
+  const v = str(fd, 'visibility');
+  if (!['public', 'friends', 'private'].includes(v)) fail(`/u/${user.username}`, 'Pick who can see your stats.');
+  await q('update users set stats_visibility = $1 where id = $2', [v, user.id]);
+  ok(`/u/${user.username}`, 'Privacy setting saved.');
 }
 
 /* ---------- reactions ---------- */
