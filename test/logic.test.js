@@ -174,3 +174,19 @@ test('weeks run Monday to Sunday; weekly winners and records', async () => {
   assert.equal(k.average, null); // needs five results
   assert.equal(rec.league.posted.value, 4);
 });
+
+test('Perceptle: overall score is the average of the five tests and sets the grade', () => {
+  const share = 'Perceptle #118 - C (64)\n🔢 37  🎯 97  📐 100  🥁 3  ✂️ 83\nhttps://perceptle.com';
+  const game = builtin('perceptle');
+  assert.deepEqual(game.parse(share), { puzzleNo: 118, score: 64 });
+  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n')), { puzzleNo: 118, score: 64 });
+  assert.deepEqual(game.parse(share.replace('#118', '#119 🃏')), { puzzleNo: 119, score: 64 }); // Friday edition
+  assert.equal(puzzleDate(game, 118), '2026-11-12');
+  assert.equal(game.parse(share.replace('C (64)', 'S (96)')), null);   // score edited
+  assert.equal(game.parse(share.replace('C (64)', 'A (64)')), null);   // grade edited
+  assert.equal(game.parse(share.replace('🥁 3', '🥁 93').replace('C (64)', 'C (64)')), null); // a test edited
+  assert.equal(game.parse(share.replace('🥁 3  ', '')), null);         // a test removed
+  assert.equal(formatScore(game, 64), '64/100');
+  const ranking = rankDay([{ user_id: 1, score: 64 }, { user_id: 2, score: 80 }], game.higherBetter);
+  assert.equal(ranking.get(2).points, 10);
+});
