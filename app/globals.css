@@ -217,3 +217,23 @@ a.player:hover, td a:hover { text-decoration: underline; }
   .cols.today > div { display: contents; }
   .cols.today .howto { order: -1; margin-top: 4px; }
 }
+
+/* ---- chat and notifications ---- */
+.tabs a { position: relative; }
+.badge { position: absolute; top: 0; right: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--err); color: #fff; font-size: .7rem; line-height: 18px; text-align: center; }
+@media (max-width: 719px) { .tabs a { min-width: 0; padding: 4px 6px; flex: 1; } }
+@media (min-width: 720px) { .badge { position: static; margin-left: 2px; } }
+h2.flush { margin: 0 0 8px; }
+.chat-form { align-items: center; }
+.chat { display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 85%; align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px; }
+.msg.mine { align-self: flex-end; background: var(--soft); border-color: var(--soft); }
+.msg p { margin: 2px 0 0; white-space: pre-wrap; word-break: break-word; }
+.request { margin: 0; border-color: var(--gold); }
+.request .row { align-items: center; margin-top: 8px; }
+.notifs .card { margin-bottom: 8px; }
+.unread { border-color: var(--accent); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex: none; }
+form.waiting { align-items: center; }
+a.notice { flex-wrap: nowrap; }
+@media (max-width: 959px) { .cols > div + div > section.card:first-child { margin-top: 14px; } }

@@ -8,6 +8,8 @@ import { q, q1 } from '@/lib/db';
 import { createSession, destroySession, requireUser, userToday, gamesByIds, canSee } from '@/lib/auth';
 import { parseManual, expectedPuzzle, puzzleDate } from '@/lib/games';
 import { addDays, todayIn, prettyDate } from '@/lib/dates';
+import { notify } from '@/lib/notify';
+import { formatScore } from '@/lib/games';
 
 const str = (fd, k) => String(fd.get(k) ?? '').trim();
 
@@ -146,6 +148,22 @@ export async function submitScore(fd) {
   );
   if (!res.length) fail('/', `You've already submitted ${game.name} for ${date === today ? 'today' : prettyDate(date)}. Scores are locked once posted.`);
   await q('insert into user_games (user_id, game_id) values ($1, $2) on conflict do nothing', [user.id, id]);
+  // Tell league-mates in every league that counts this game.
+  const mates = await q(
+    `select m2.user_id, min(m.league_id) as league_id from league_members m
+     join league_games g on g.league_id = m.league_id and g.game_id = $2
+     join league_members m2 on m2.league_id = m.league_id and m2.user_id <> $1
+     where m.user_id = $1 group by m2.user_id`,
+    [user.id, id]
+  );
+  const byLeague = {};
+  for (const r of mates) (byLeague[r.league_id] ??= []).push(r.user_id);
+  for (const [leagueId, ids] of Object.entries(byLeague)) {
+    await notify(ids, {
+      kind: 'score', link: `/leagues/${leagueId}`,
+      body: `${user.display_name} posted ${game.name}: ${formatScore(game, score)}${manual ? ' (entered by hand)' : ''}`,
+    });
+  }
   ok('/', date === today ? `${game.name} score saved.` : `${game.name} score saved for ${prettyDate(date)}.`);
 }
 
@@ -179,10 +197,11 @@ export async function joinLeague(fd) {
   const user = await requireUser();
   // Accept either a bare code or a pasted invite link.
   const code = (str(fd, 'code').toLowerCase().match(/[0-9a-f]{10}/) ?? [''])[0];
-  const league = await q1('select id from leagues where code = $1', [code]);
+  const league = await q1('select id, name, owner_id from leagues where code = $1', [code]);
   if (!league) fail('/leagues', 'No league found for that invite code.');
-  await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing', [league.id, user.id]);
+  const joined = await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing returning 1', [league.id, user.id]);
   await q('delete from league_invites where league_id = $1 and user_id = $2', [league.id, user.id]);
+  if (joined.length) await notify([league.owner_id], { kind: 'join', link: `/leagues/${league.id}`, body: `${user.display_name} joined ${league.name}` });
   redirect(`/leagues/${league.id}`);
 }
 
@@ -212,7 +231,7 @@ export async function setLeagueGames(fd) {
   const id = Number(fd.get('league'));
   const league = await membership(id, user.id);
   const path = `/leagues/${id}`;
-  if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league owner can change its games.');
+  if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league admin can change its games.');
   const games = await gamesByIds(fd.getAll('games').map(String));
   if (!Object.keys(games).length) fail(path, 'A league needs at least one game.');
   await q('delete from league_games where league_id = $1', [id]);
@@ -241,6 +260,7 @@ export async function inviteFriend(fd) {
       [id, friendId, user.id]
     );
   }
+  if (!already) await notify([friendId], { kind: 'invite', link: '/', body: `${user.display_name} invited you to ${league.name}` });
   ok(`/leagues/${id}`, 'Invite sent.');
 }
 
@@ -250,9 +270,92 @@ export async function respondInvite(fd) {
   const invite = await q1('delete from league_invites where league_id = $1 and user_id = $2 returning league_id', [id, user.id]);
   if (invite && str(fd, 'answer') === 'accept') {
     await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing', [id, user.id]);
+    const league = await q1('select name, owner_id from leagues where id = $1', [id]);
+    if (league) await notify([league.owner_id], { kind: 'join', link: `/leagues/${id}`, body: `${user.display_name} joined ${league.name}` });
     redirect(`/leagues/${id}`);
   }
   revalidatePath('/');
+}
+
+/* ---------- league chat, game requests, reminders ---------- */
+
+export async function postMessage(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const body = String(fd.get('body') ?? '').trim().slice(0, 500);
+  const league = await membership(id, user.id);
+  const path = `/leagues/${id}/chat`;
+  if (!league?.is_member) fail('/leagues', 'You are not in that league.');
+  if (!body) fail(path, 'Write a message first.');
+  await q('insert into league_messages (league_id, user_id, body) values ($1, $2, $3)', [id, user.id, body]);
+  const others = await q('select user_id from league_members where league_id = $1 and user_id <> $2', [id, user.id]);
+  await notify(others.map((r) => r.user_id), { kind: 'chat', link: path, body: `New messages in ${league.name}`, once: true });
+  redirect(path);
+}
+
+export async function requestGame(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const gameId = str(fd, 'game');
+  const league = await membership(id, user.id);
+  const path = `/leagues/${id}/chat`;
+  if (!league?.is_member) fail('/leagues', 'You are not in that league.');
+  const game = (await gamesByIds([gameId]))[gameId];
+  if (!game) fail(path, 'Pick a game to request.');
+  if (await q1('select 1 from league_games where league_id = $1 and game_id = $2', [id, gameId])) fail(path, `${game.name} already counts in this league.`);
+  if (await q1(`select 1 from league_messages where league_id = $1 and game_id = $2 and kind = 'request' and status = 'pending'`, [id, gameId])) {
+    fail(path, `${game.name} has already been requested.`);
+  }
+  await q(`insert into league_messages (league_id, user_id, kind, game_id, status) values ($1, $2, 'request', $3, 'pending')`, [id, user.id, gameId]);
+  await notify([league.owner_id], { kind: 'request', link: path, body: `${user.display_name} asked to add ${game.name} to ${league.name}` });
+  ok(path, league.owner_id === user.id ? 'Request posted.' : 'Request sent to the admin.');
+}
+
+export async function decideRequest(fd) {
+  const user = await requireUser();
+  const msg = await q1(
+    `select m.id, m.league_id, m.user_id, m.game_id, l.owner_id, l.name from league_messages m
+     join leagues l on l.id = m.league_id where m.id = $1 and m.kind = 'request' and m.status = 'pending'`,
+    [Number(fd.get('message'))]
+  );
+  if (!msg) fail('/leagues', 'That request has already been handled.');
+  const path = `/leagues/${msg.league_id}/chat`;
+  if (msg.owner_id !== user.id) fail(path, 'Only the league admin can decide game requests.');
+  const game = (await gamesByIds([msg.game_id]))[msg.game_id];
+  const approve = str(fd, 'answer') === 'approve' && game;
+  if (approve) await q('insert into league_games (league_id, game_id) values ($1, $2) on conflict do nothing', [msg.league_id, msg.game_id]);
+  await q('update league_messages set status = $1 where id = $2', [approve ? 'approved' : 'declined', msg.id]);
+  const name = game?.name ?? 'That game';
+  if (approve) {
+    const members = await q('select user_id from league_members where league_id = $1 and user_id <> $2', [msg.league_id, user.id]);
+    await notify(members.map((r) => r.user_id), { kind: 'request', link: `/leagues/${msg.league_id}`, body: `${name} now counts in ${msg.name}` });
+  } else {
+    await notify([msg.user_id], { kind: 'request', link: path, body: `The admin declined ${name} for ${msg.name}` });
+  }
+  ok(path, approve ? `${name} added to the league.` : 'Request declined.');
+}
+
+// Remind league-mates who haven't posted a game today. Each player gets at most one reminder per game per day.
+export async function nudge(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const gameId = str(fd, 'game');
+  const league = await membership(id, user.id);
+  const path = `/leagues/${id}`;
+  if (!league?.is_member) fail('/leagues', 'You are not in that league.');
+  const game = (await gamesByIds([gameId]))[gameId];
+  if (!game || !(await q1('select 1 from league_games where league_id = $1 and game_id = $2', [id, gameId]))) fail(path, 'That game is not in this league.');
+  const today = await userToday();
+  const body = `Reminder: play today's ${game.name} for ${league.name}`;
+  const targets = await q(
+    `select m.user_id from league_members m where m.league_id = $1 and m.user_id <> $2
+       and not exists (select 1 from scores s where s.user_id = m.user_id and s.game_id = $3 and s.play_date = $4)
+       and not exists (select 1 from notifications n where n.user_id = m.user_id and n.kind = 'nudge' and n.body = $5
+                       and n.created_at > now() - interval '18 hours')`,
+    [id, user.id, gameId, today, body]
+  );
+  await notify(targets.map((r) => r.user_id), { kind: 'nudge', link: '/', body });
+  ok(path, targets.length ? `Reminder sent to ${targets.length} player${targets.length === 1 ? '' : 's'}.` : 'Everyone still to play has already been reminded today.');
 }
 
 /* ---------- friends ---------- */
@@ -273,9 +376,11 @@ export async function addFriend(fd) {
   if (existing) {
     // They had already asked us: accept.
     await q(`update friendships set status = 'accepted' where user_id = $1 and friend_id = $2`, [other.id, user.id]);
+    await notify([other.id], { kind: 'friend', link: `/u/${user.username}`, body: `${user.display_name} accepted your friend request` });
     ok(back, `You and ${other.display_name} are now friends.`);
   }
   await q('insert into friendships (user_id, friend_id) values ($1, $2)', [user.id, other.id]);
+  await notify([other.id], { kind: 'friend', link: '/friends', body: `${user.display_name} sent you a friend request` });
   ok(back, 'Friend request sent.');
 }
 
@@ -283,7 +388,8 @@ export async function respondFriend(fd) {
   const user = await requireUser();
   const from = Number(fd.get('from'));
   if (str(fd, 'answer') === 'accept') {
-    await q(`update friendships set status = 'accepted' where user_id = $1 and friend_id = $2`, [from, user.id]);
+    const done = await q(`update friendships set status = 'accepted' where user_id = $1 and friend_id = $2 and status = 'pending' returning 1`, [from, user.id]);
+    if (done.length) await notify([from], { kind: 'friend', link: `/u/${user.username}`, body: `${user.display_name} accepted your friend request` });
   } else {
     await q(`delete from friendships where user_id = $1 and friend_id = $2 and status = 'pending'`, [from, user.id]);
   }

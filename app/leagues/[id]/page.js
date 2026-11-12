@@ -6,7 +6,7 @@ import { GAMES, formatScore, formatAvg } from '@/lib/games';
 import { addDays, isDate, monthLabel, monthsBetween, prettyDate } from '@/lib/dates';
 import { loadLeague } from '@/lib/league';
 import { standings, gameStandings, withPositions, rankDay, POINTS } from '@/lib/points';
-import { inviteFriend, leaveLeague, setLeagueGames, react } from '../../actions';
+import { inviteFriend, leaveLeague, setLeagueGames, react, nudge } from '../../actions';
 import { Flash, Medal } from '../../ui';
 import CopyLink from '../../CopyLink';
 import Submit from '../../Submit';
@@ -85,6 +85,12 @@ export default async function LeaguePage({ params, searchParams }) {
     [user.id, league.id]
   );
   const isOwner = league.owner_id === user.id;
+  const admin = byId[league.owner_id];
+  const unseen = (await q(
+    `select count(*) as n from league_messages m join league_members lm on lm.league_id = m.league_id and lm.user_id = $2
+     where m.league_id = $1 and m.id > lm.chat_seen_id and m.user_id <> $2`,
+    [league.id, user.id]
+  ))[0].n;
   let gameOptions = [];
   if (isOwner) {
     const mineIds = (await q('select game_id from user_games where user_id = $1', [user.id])).map((r) => r.game_id);
@@ -100,6 +106,10 @@ export default async function LeaguePage({ params, searchParams }) {
           <p className="muted">{members.length} player{members.length === 1 ? '' : 's'} · {gameList.map((g) => g.emoji).join(' ')}</p>
         </div>
         <CopyLink path={`/join/${league.code}`} />
+      </div>
+      <div className="pills" aria-label="League sections">
+        <Link href={base} className="on">🏆 Standings</Link>
+        <Link href={`${base}/chat`} prefetch={false}>💬 Chat{unseen > 0 ? ` · ${unseen} new` : ''}</Link>
       </div>
       <Flash sp={sp} />
 
@@ -132,7 +142,7 @@ export default async function LeaguePage({ params, searchParams }) {
             {table.map((r) => (
               <tr key={r.user.id} className={r.user.id === user.id ? 'me' : ''}>
                 <td><Medal pos={r.pos} /></td>
-                <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link></td>
+                <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link>{r.user.id === league.owner_id && <small className="muted"> · admin</small>}</td>
                 <td>{r.played}</td>
                 <td className="opt">{r.wins}</td>
                 {tab !== 'overall' && <td>{formatAvg(games[tab], r.avg)}</td>}
@@ -210,7 +220,14 @@ export default async function LeaguePage({ params, searchParams }) {
                 )}
               </div>
             ))}
-            {waiting.length > 0 && <p className="muted small waiting">Still to play: {waiting.map((m) => m.display_name).join(', ')}</p>}
+            {waiting.length > 0 && (
+              <form action={nudge} className="waiting row">
+                <input type="hidden" name="league" value={league.id} />
+                <input type="hidden" name="game" value={g.id} />
+                <span className="muted small grow">Still to play: {waiting.map((m) => m.display_name).join(', ')}</span>
+                {waiting.some((m) => m.id !== user.id) && <Submit className="btn small">⏰ Remind</Submit>}
+              </form>
+            )}
           </div>
         );
       })}
@@ -228,9 +245,15 @@ export default async function LeaguePage({ params, searchParams }) {
           <Submit>Invite friend</Submit>
         </form>
       )}
+      {!isOwner && (
+        <p className="card muted">
+          Only the admin ({admin?.display_name}) can change which games count.{' '}
+          <Link href={`${base}/chat`}>Request a game in the chat</Link>.
+        </p>
+      )}
       {isOwner && (
         <details className="card">
-          <summary>Change which games count</summary>
+          <summary>Change which games count (admin only)</summary>
           <form action={setLeagueGames} className="stack">
             <input type="hidden" name="league" value={league.id} />
             <div className="checks">
@@ -250,7 +273,7 @@ export default async function LeaguePage({ params, searchParams }) {
           <input type="hidden" name="league" value={league.id} />
           <p className="muted">
             {isOwner && members.length === 1 ? 'You are the only member, so this closes the league.'
-              : isOwner ? 'The league passes to the next longest-standing member.' : 'You can rejoin later with the invite link.'}
+              : isOwner ? 'You are the admin, so the league passes to the next longest-standing member.' : 'You can rejoin later with the invite link.'}
           </p>
           <Submit className="btn danger">Leave {league.name}</Submit>
         </form>
