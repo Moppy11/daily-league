@@ -68,3 +68,15 @@ test('rank points and standings', () => {
   const table = withPositions(standings(scores, games, members));
   assert.deepEqual(table.map((r) => [r.user.id, r.total, r.wins, r.pos]), [[2, 27, 1, 1], [1, 17, 1, 2], [3, 0, 0, 3]]);
 });
+
+test('Size It Up reads the shared total and ranks higher scores first', () => {
+  const share = 'Magnitudle — Size It Up\n2026-11-12\n\nScore: 305/500\n\n🟥🟥⬜⬜⬜ 39\n🟥🟥🟥🟥⬜ 83\n🟥🟥🟥🟥⬜ 89\n⬜⬜⬜⬜⬜ 8\n🟥🟥🟥🟥⬜ 86\n\nhttps://magnitudle.com/size-it-up';
+  const game = builtin('size-it-up');
+  assert.deepEqual(game.parse(share), { puzzleNo: null, score: 305 });
+  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n').replace('305/500', '500/500')), { puzzleNo: null, score: 500 });
+  assert.equal(game.parse(share.replace('305/500', '501/500')), null);
+  assert.equal(game.parse(share.replace('305/500', '305/600')), null);
+  assert.equal(formatScore(game, 305), '305/500');
+  const ranking = rankDay([{ user_id: 1, score: 305 }, { user_id: 2, score: 400 }], game.higherBetter);
+  assert.equal(ranking.get(2).points, 10);
+});

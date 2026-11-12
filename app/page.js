@@ -91,6 +91,12 @@ export default async function Home({ searchParams }) {
       )}
 
       <h2>Today&apos;s games</h2>
+      {games.some((g) => !done[g.id]) && (
+        <p className="muted small score-notice">
+          Use <strong>Share result</strong> on the game&apos;s website and paste the full result here.
+          Hand-entered scores are marked <strong>✍️ Entered by hand</strong> for everyone in your league to see.
+        </p>
+      )}
       {games.length === 0 && (
         <div className="card empty">
           <p>You haven&apos;t added any games yet.</p>
@@ -117,7 +123,6 @@ export default async function Home({ searchParams }) {
                       <details>
                         <summary>No share text? Enter it by hand</summary>
                         <input name="manual" placeholder={manualHint(g)} aria-label={`${g.name} score`} />
-                        <small className="muted">Hand-typed scores are marked ✍️ for your league.</small>
                       </details>
                     </>
                   ) : (

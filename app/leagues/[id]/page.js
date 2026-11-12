@@ -177,7 +177,7 @@ export default async function LeaguePage({ params, searchParams }) {
                 <Medal pos={ranked.get(s.user_id).rank} />
                 <span className="grow">
                   {byId[s.user_id].display_name}
-                  {s.manual && <span title="Typed by hand, not pasted from the game"> ✍️</span>}
+                  {s.manual && <small className="manual-score">✍️ Entered by hand</small>}
                   {s.flagged && <span title="Puzzle number differs from other players"> ⚠️</span>}
                 </span>
                 <b>{formatScore(g, s.score)}</b>
