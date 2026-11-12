@@ -3,7 +3,9 @@ import { q, q1 } from '@/lib/db';
 import Link from 'next/link';
 import { getUser, userToday, gamesByIds, canSeeStats, relationship } from '@/lib/auth';
 import { formatScore, formatAvg } from '@/lib/games';
-import { addDays, prettyDate } from '@/lib/dates';
+import { addDays, prettyDate, weekStart } from '@/lib/dates';
+import { loadLeague } from '@/lib/league';
+import { weeklyWinners } from '@/lib/records';
 import { setVisibility } from '../../actions';
 import { Flash } from '../../ui';
 import CopyLink from '../../CopyLink';
@@ -117,6 +119,17 @@ export default async function Profile({ params, searchParams }) {
 
   const history = scores.slice(-30).reverse();
 
+  // Weeks won in each league this player is in.
+  const leagueIds = await q('select league_id from league_members where user_id = $1', [person.id]);
+  const weekWins = [];
+  for (const { league_id } of leagueIds) {
+    const l = await loadLeague(league_id);
+    if (!l) continue;
+    const won = weeklyWinners(l.scores, l.games, l.members, weekStart(today)).filter((w) => w.winners.some((u) => u.id === person.id)).length;
+    if (won) weekWins.push({ name: l.league.name, won });
+  }
+  const totalWeekWins = weekWins.reduce((a, w) => a + w.won, 0);
+
   return (
     <>
       {head(all.current)}
@@ -137,8 +150,12 @@ export default async function Profile({ params, searchParams }) {
         <div><b>{scores.length}</b><small>results posted</small></div>
         <div><b>{new Set(scores.map((s) => s.play_date)).size}</b><small>days played</small></div>
         <div><b>{all.longest}</b><small>longest streak</small></div>
+        <div><b>🏆 {totalWeekWins}</b><small>weeks won</small></div>
       </div>
 
+      {weekWins.length > 0 && (
+        <p className="muted small">Weeks won: {weekWins.map((w) => `${w.name} ${w.won}`).join(' · ')}</p>
+      )}
       <div className="cols">
       <div>
       {h2h && (

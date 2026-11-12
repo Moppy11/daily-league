@@ -142,3 +142,35 @@ test('Fermi: score must be the geometric mean of the three rounds', () => {
   const ranking = rankDay([{ user_id: 1, score: 14.1 }, { user_id: 2, score: 2.5 }], game.higherBetter);
   assert.equal(ranking.get(2).points, 10);
 });
+
+test('weeks run Monday to Sunday; weekly winners and records', async () => {
+  const { weekStart, weeksBetween, weekLabel } = await import('../lib/dates.js');
+  const { weeklyWinners, weeklyWinCounts, leagueRecords } = await import('../lib/records.js');
+  assert.equal(weekStart('2026-11-12'), '2026-11-09'); // Thursday
+  assert.equal(weekStart('2026-11-09'), '2026-11-09'); // Monday
+  assert.equal(weekStart('2026-11-15'), '2026-11-09'); // Sunday
+  assert.deepEqual(weeksBetween('2026-10-28', '2026-11-12'), ['2026-11-09', '2026-11-02', '2026-10-26']);
+  assert.equal(weekLabel('2026-11-09'), '9–15 Nov');
+  assert.equal(weekLabel('2026-11-30'), '30 Nov – 6 Dec');
+
+  const games = { krillion: builtin('krillion'), wordle: builtin('wordle') };
+  const members = [1, 2, 3].map((id) => ({ id, display_name: 'P' + id }));
+  const s = (user_id, game_id, play_date, score) => ({ user_id, game_id, play_date, score });
+  const scores = [
+    s(1, 'krillion', '2026-10-26', 500), s(2, 'krillion', '2026-10-26', 300),            // week of 26 Oct: P1 wins
+    s(1, 'krillion', '2026-11-02', 200), s(2, 'krillion', '2026-11-02', 200),            // week of 2 Nov: tie, shared
+    s(2, 'wordle', '2026-11-10', 2), s(1, 'wordle', '2026-11-10', 5), s(2, 'krillion', '2026-11-11', 650), // current week
+  ];
+  const winners = weeklyWinners(scores, games, members, '2026-11-09');
+  assert.deepEqual(winners.map((w) => [w.week, w.winners.map((u) => u.id), w.total]), [['2026-11-02', [1, 2], 10], ['2026-10-26', [1], 10]]);
+  assert.deepEqual(weeklyWinCounts(winners), { 1: 2, 2: 1 });
+
+  const rec = leagueRecords(scores, games, members, '2026-11-09');
+  assert.deepEqual([rec.league.weeklyWins.value, rec.league.weeklyWins.users.map((u) => u.id)], [2, [1]]);
+  assert.deepEqual([rec.league.bestWeek.value, rec.league.bestWeek.users[0].id, rec.league.bestWeek.extra], [20, 2, '2026-11-09']);
+  const k = rec.perGame.find((r) => r.game.id === 'krillion'), w = rec.perGame.find((r) => r.game.id === 'wordle');
+  assert.deepEqual([k.best.value, k.best.users[0].id, k.best.extra], [650, 2, '2026-11-11']);
+  assert.deepEqual([w.best.value, w.best.users[0].id], [2, 2]); // lower is better
+  assert.equal(k.average, null); // needs five results
+  assert.equal(rec.league.posted.value, 4);
+});

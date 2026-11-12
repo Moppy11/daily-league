@@ -190,6 +190,20 @@ export async function createLeague(fd) {
   for (const id of Object.keys(games)) {
     await q('insert into league_games (league_id, game_id) values ($1, $2)', [league.id, id]);
   }
+  // Invite the friends ticked on the form. Only accepted friends can be invited this way.
+  const wanted = fd.getAll('invite').map(Number).filter(Number.isInteger);
+  const invited = wanted.length
+    ? await q(
+        `insert into league_invites (league_id, user_id, invited_by)
+         select $1, u, $2 from unnest($3::int[]) u
+         where exists (select 1 from friendships f where f.status = 'accepted'
+           and ((f.user_id = $2 and f.friend_id = u) or (f.user_id = u and f.friend_id = $2)))
+         on conflict do nothing returning user_id`,
+        [league.id, user.id, wanted]
+      )
+    : [];
+  await notify(invited.map((r) => r.user_id), { kind: 'invite', link: '/', body: `${user.display_name} invited you to ${name}` });
+  if (invited.length) ok(`/leagues/${league.id}`, `League created. ${invited.length} invite${invited.length === 1 ? '' : 's'} sent.`);
   redirect(`/leagues/${league.id}`);
 }
 

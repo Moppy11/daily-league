@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { getUser, userToday, gamesByIds } from '@/lib/auth';
 import { formatScore } from '@/lib/games';
-import { addDays, prettyDate } from '@/lib/dates';
+import { addDays, prettyDate, weekStart } from '@/lib/dates';
 import { loadLeague } from '@/lib/league';
 import { standings, withPositions } from '@/lib/points';
 import { submitScore, respondInvite } from './actions';
@@ -15,7 +15,7 @@ function Landing() {
       <h1>One league for all your daily games</h1>
       <p>
         Post your Krillion, Wordle, Connections and other daily results, earn points against your
-        friends every day, and climb the monthly table.
+        friends every day, and win the week.
       </p>
       <div className="row center">
         <Link className="btn primary" href="/signup">Create an account</Link>
@@ -24,7 +24,7 @@ function Landing() {
       <ul className="features">
         <li><b>Paste to score.</b> Tap Share in the game and paste the result. It&apos;s checked against today&apos;s puzzle, then locked.</li>
         <li><b>Leagues.</b> Invite friends with a link. An overall table plus one for each game.</li>
-        <li><b>Monthly seasons.</b> A fresh race every month, with an all-time table alongside.</li>
+        <li><b>Weekly races.</b> The table resets every Monday, with weekly winners, all-time standings and records.</li>
         <li><b>Your stats.</b> Averages, bests, streaks and history for every game you play.</li>
       </ul>
     </section>
@@ -59,7 +59,7 @@ export default async function Home({ searchParams }) {
   let streak = 0;
   for (let d = played.has(today) ? today : addDays(today, -1); played.has(d); d = addDays(d, -1)) streak++;
 
-  const month = today.slice(0, 7);
+  const week = weekStart(today);
   const remaining = games.filter((g) => !done[g.id]).length;
 
   return (
@@ -144,12 +144,12 @@ export default async function Home({ searchParams }) {
         </div>
       )}
       {leagues.map((l) => {
-        const table = withPositions(standings(l.scores.filter((s) => s.play_date.startsWith(month)), l.games, l.members));
+        const table = withPositions(standings(l.scores.filter((s) => s.play_date >= week), l.games, l.members));
         const me = table.find((r) => r.user.id === user.id);
         return (
           <Link href={`/leagues/${l.league.id}`} className="card league-row" key={l.league.id}>
             <Medal pos={me.pos} />
-            <span className="grow"><b>{l.league.name}</b><small className="muted">{l.members.length} players · this month</small></span>
+            <span className="grow"><b>{l.league.name}</b><small className="muted">{l.members.length} player{l.members.length === 1 ? '' : 's'} · this week</small></span>
             <span className="pts">{me.total}<small>pts</small></span>
           </Link>
         );

@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { q } from '@/lib/db';
 import { requireUser, userToday, gamesByIds } from '@/lib/auth';
 import { GAMES, formatScore, formatAvg } from '@/lib/games';
-import { addDays, isDate, monthLabel, monthsBetween, prettyDate } from '@/lib/dates';
+import { addDays, isDate, weekStart, weeksBetween, weekLabel, prettyDate } from '@/lib/dates';
+import { weeklyWinners, weeklyWinCounts, leagueRecords } from '@/lib/records';
 import { loadLeague } from '@/lib/league';
 import { standings, gameStandings, withPositions, rankDay, POINTS } from '@/lib/points';
 import { inviteFriend, leaveLeague, setLeagueGames, react, nudge } from '../../actions';
@@ -25,9 +26,9 @@ export default async function LeaguePage({ params, searchParams }) {
   }
 
   const today = await userToday();
-  const thisMonth = today.slice(0, 7);
-  const months = monthsBetween(addDays(league.start_date, 1).slice(0, 7), thisMonth);
-  const season = sp.season === 'all' || months.includes(sp.season) ? sp.season : thisMonth;
+  const thisWeek = weekStart(today);
+  const weeks = weeksBetween(addDays(league.start_date, 1), today);
+  const season = sp.season === 'all' || weeks.includes(sp.season) ? sp.season : thisWeek;
   const gameList = Object.values(games).sort((a, b) => a.name.localeCompare(b.name));
   const tab = games[sp.tab] ? sp.tab : 'overall';
   const date = isDate(sp.date) && sp.date <= today ? sp.date : today;
@@ -36,28 +37,28 @@ export default async function LeaguePage({ params, searchParams }) {
     const p = { tab, season, date, ...over };
     const qs = new URLSearchParams();
     if (p.tab !== 'overall') qs.set('tab', p.tab);
-    if (p.season !== thisMonth) qs.set('season', p.season);
+    if (p.season !== thisWeek) qs.set('season', p.season);
     if (p.date !== today) qs.set('date', p.date);
     const s = qs.toString();
     return s ? `${base}?${s}` : base;
   };
 
-  const inSeason = season === 'all' ? scores : scores.filter((s) => s.play_date.startsWith(season));
+  const inSeason = season === 'all' ? scores : scores.filter((s) => s.play_date >= season && s.play_date <= addDays(season, 6));
   const table = withPositions(tab === 'overall' ? standings(inSeason, games, members) : gameStandings(inSeason, games[tab], members));
 
   // Points earned today, shown beside the table while looking at a season that includes today.
-  const showToday = season === 'all' || season === thisMonth;
+  const showToday = season === 'all' || season === thisWeek;
   const todayPts = {};
   if (showToday) {
     const tGames = tab === 'overall' ? games : { [tab]: games[tab] };
     for (const r of standings(scores.filter((s) => s.play_date === today), tGames, members)) todayPts[r.user.id] = r.played ? r.total : null;
   }
 
-  // Winners of finished months.
-  const champions = months.filter((m) => m < thisMonth).map((m) => {
-    const top = standings(scores.filter((s) => s.play_date.startsWith(m)), games, members)[0];
-    return top && top.total > 0 ? { month: m, user: top.user, total: top.total } : null;
-  }).filter(Boolean);
+  // Winners of finished weeks, how many weeks each player has won, and the all-time records.
+  const champions = weeklyWinners(scores, games, members, thisWeek);
+  const weekWins = weeklyWinCounts(champions);
+  const records = leagueRecords(scores, games, members, thisWeek);
+  const names = (r) => (r.users.length > 3 ? `${r.users.length} players` : r.users.map((u) => u.display_name).join(' & '));
 
   // Results for the chosen day.
   const dayScores = scores.filter((s) => s.play_date === date);
@@ -116,8 +117,8 @@ export default async function LeaguePage({ params, searchParams }) {
       <div className="cols">
       <div>
       <div className="pills" aria-label="Season">
-        {months.slice(0, 6).map((m) => (
-          <Link key={m} href={href({ season: m })} className={season === m ? 'on' : ''}>{m === thisMonth ? 'This month' : monthLabel(m)}</Link>
+        {weeks.slice(0, 5).map((w) => (
+          <Link key={w} href={href({ season: w })} className={season === w ? 'on' : ''}>{w === thisWeek ? 'This week' : weekLabel(w)}</Link>
         ))}
         <Link href={href({ season: 'all' })} className={season === 'all' ? 'on' : ''}>All-time</Link>
       </div>
@@ -132,7 +133,8 @@ export default async function LeaguePage({ params, searchParams }) {
         <table className={tab === 'overall' ? '' : 'wide'}>
           <thead>
             <tr>
-              <th>#</th><th className="left">Player</th><th>Played</th><th className="opt">Wins</th>
+              <th>#</th><th className="left">Player</th><th className="opt2">Played</th><th className="opt" title="Days won">Wins</th>
+              {tab === 'overall' && <th title="Weeks won">Weeks</th>}
               {tab !== 'overall' && <th>Avg</th>}
               {showToday && <th>Today</th>}
               <th>Pts</th>
@@ -143,8 +145,9 @@ export default async function LeaguePage({ params, searchParams }) {
               <tr key={r.user.id} className={r.user.id === user.id ? 'me' : ''}>
                 <td><Medal pos={r.pos} /></td>
                 <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link>{r.user.id === league.owner_id && <small className="muted"> · admin</small>}</td>
-                <td>{r.played}</td>
+                <td className="opt2">{r.played}</td>
                 <td className="opt">{r.wins}</td>
+                {tab === 'overall' && <td>{weekWins[r.user.id] ? `🏆 ${weekWins[r.user.id]}` : <span className="muted">–</span>}</td>}
                 {tab !== 'overall' && <td>{formatAvg(games[tab], r.avg)}</td>}
                 {showToday && <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
                 <td><b>{r.total}</b></td>
@@ -155,24 +158,24 @@ export default async function LeaguePage({ params, searchParams }) {
       </div>
       <p className="muted small">
         Each day, each game: 1st gets {POINTS[0]}, then {POINTS.slice(1).join(', ')}, and 1 for anyone else who played. Ties share the better place.
+        The table resets every Monday; whoever is top on Sunday night wins the week (🏆).
         Tap a player to see their profile or add them as a friend.
       </p>
 
       {champions.length > 0 && (
         <>
-          <h2>Champions</h2>
+          <h2>Weekly winners</h2>
           <div className="list">
-            {champions.map((c) => (
-              <div className="card list-row" key={c.month}>
+            {champions.slice(0, 6).map((c) => (
+              <div className="card list-row" key={c.week}>
                 <span className="emoji">👑</span>
-                <span className="grow"><b>{c.user.display_name}</b><small className="muted">{monthLabel(c.month)}</small></span>
+                <span className="grow"><b>{c.winners.map((u) => u.display_name).join(' & ')}</b><small className="muted">{weekLabel(c.week)}</small></span>
                 <span className="pts">{c.total}<small>pts</small></span>
               </div>
             ))}
           </div>
         </>
       )}
-
       </div>
       <div>
       <div className="daynav">
@@ -234,6 +237,35 @@ export default async function LeaguePage({ params, searchParams }) {
 
       </div>
       </div>
+
+      {records.perGame.length > 0 && (
+        <>
+          <h2>All-time records</h2>
+          <div className="grid records">
+            <section className="card">
+              <h3>🏅 League</h3>
+              <dl>
+                {records.league.bestWeek && <><dt>Most points in a week</dt><dd><b>{records.league.bestWeek.value}</b> {names(records.league.bestWeek)} <small className="muted">{weekLabel(records.league.bestWeek.extra)}</small></dd></>}
+                {records.league.bestDay && <><dt>Most points in a day</dt><dd><b>{records.league.bestDay.value}</b> {names(records.league.bestDay)} <small className="muted">{prettyDate(records.league.bestDay.extra)}</small></dd></>}
+                {records.league.weeklyWins && <><dt>Most weeks won</dt><dd><b>{records.league.weeklyWins.value}</b> {names(records.league.weeklyWins)}</dd></>}
+                {records.league.streak && <><dt>Longest posting streak</dt><dd><b>{records.league.streak.value} days</b> {names(records.league.streak)}</dd></>}
+                {records.league.posted && <><dt>Most results posted</dt><dd><b>{records.league.posted.value}</b> {names(records.league.posted)}</dd></>}
+              </dl>
+            </section>
+            {records.perGame.map((r) => (
+              <section className="card" key={r.game.id}>
+                <h3>{r.game.emoji} {r.game.name}</h3>
+                <dl>
+                  {r.best && <><dt>{r.game.higherBetter ? 'Highest score' : 'Best score'}</dt><dd><b>{formatScore(r.game, r.best.value)}</b> {names(r.best)} <small className="muted">{prettyDate(r.best.extra)}</small></dd></>}
+                  {r.average && <><dt>Best average</dt><dd><b>{formatAvg(r.game, r.average.value)}</b> {names(r.average)}</dd></>}
+                  {r.wins && <><dt>Most days won</dt><dd><b>{r.wins.value}</b> {names(r.wins)}</dd></>}
+                  {r.streak && <><dt>Longest streak</dt><dd><b>{r.streak.value} days</b> {names(r.streak)}</dd></>}
+                </dl>
+              </section>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2>Manage</h2>
       {friends.length > 0 && (

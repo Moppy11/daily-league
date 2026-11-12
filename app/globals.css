@@ -237,3 +237,11 @@ h2.flush { margin: 0 0 8px; }
 form.waiting { align-items: center; }
 a.notice { flex-wrap: nowrap; }
 @media (max-width: 959px) { .cols > div + div > section.card:first-child { margin-top: 14px; } }
+
+/* ---- records ---- */
+.records dl { margin: 0; display: grid; gap: 8px; }
+.records dt { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.records dd { margin: 0; }
+.records dd b { margin-right: 4px; }
+.stats:not(.tight) { grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); }
+@media (max-width: 480px) { table .opt2 { display: none; } }

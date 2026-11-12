@@ -18,6 +18,12 @@ export default async function Leagues({ searchParams }) {
   const mine = new Set(mineIds);
   const customs = Object.values(await gamesByIds(mineIds)).filter((g) => g.custom);
   const options = [...GAMES, ...customs];
+  const friends = await q(
+    `select u.id, u.display_name, u.username from friendships f
+     join users u on u.id = case when f.user_id = $1 then f.friend_id else f.user_id end
+     where (f.user_id = $1 or f.friend_id = $1) and f.status = 'accepted' order by u.display_name`,
+    [user.id]
+  );
 
   return (
     <>
@@ -52,6 +58,20 @@ export default async function Leagues({ searchParams }) {
               </label>
             ))}
           </div>
+        </fieldset>
+        <fieldset>
+          <legend>Invite friends</legend>
+          {friends.length === 0 ? (
+            <p className="muted small">Add friends on the <Link href="/friends">Friends page</Link> to invite them here. You can also share an invite link once the league exists.</p>
+          ) : (
+            <div className="checks">
+              {friends.map((f) => (
+                <label key={f.id} className="check">
+                  <input type="checkbox" name="invite" value={f.id} /> {f.display_name}
+                </label>
+              ))}
+            </div>
+          )}
         </fieldset>
         <Submit>Create league</Submit>
       </form>
