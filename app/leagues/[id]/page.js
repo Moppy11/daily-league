@@ -137,12 +137,12 @@ export default async function LeaguePage({ params, searchParams }) {
             <table>
               <thead>
                 <tr>
-                  <th title="Position">Pos</th>
+                  <th title="Position in the league"><span className="wide-only">Position</span><span className="narrow-only">Rank</span></th>
                   <th className="left">Player</th>
-                  <th title="Results played">P</th>
-                  <th title="Games won">W</th>
-                  {view === 'all' ? <th title="Weeks won">🏆</th> : <th title="Points so far today">Today</th>}
-                  <th title="Points">Pts</th>
+                  <th title="Results posted">Played</th>
+                  <th title="Games won (best result of the day)">Wins</th>
+                  {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : <th title="Points earned so far today">Today</th>}
+                  <th title="Total points">Points</th>
                 </tr>
               </thead>
               <tbody>

@@ -360,3 +360,8 @@ a.play-chip:hover { border-color: var(--accent); }
   .play-strip { flex-direction: column; align-items: stretch; }
   .play-strip .btn { text-align: center; }
 }
+
+.league-table thead th { white-space: normal; line-height: 1.2; vertical-align: bottom; }
+@media (max-width: 480px) { .league-table thead th { font-size: .62rem; letter-spacing: .02em; } .league-table th, .league-table td { padding-left: 4px; padding-right: 4px; } }
+.narrow-only { display: none; }
+@media (max-width: 400px) { .wide-only { display: none; } .narrow-only { display: inline; } }
