@@ -8,6 +8,7 @@ import Submit from '../Submit';
 
 export default async function Leagues({ searchParams }) {
   const sp = await searchParams;
+  const find = typeof sp.find === 'string' ? sp.find.trim().slice(0, 40) : '';
   const user = await requireUser('/leagues');
   const leagues = await q(
     `select l.id, l.name, (select count(*) from league_members where league_id = l.id) as players
@@ -18,8 +19,9 @@ export default async function Leagues({ searchParams }) {
     `select l.id, l.name, (select count(*) from league_members where league_id = l.id) as players,
        (select string_agg(game_id, ',') from league_games where league_id = l.id) as games
      from leagues l where l.is_public and l.id not in (select league_id from league_members where user_id = $1)
+       and ($2 = '' or l.name ilike $3)
      order by players desc, l.id desc limit 12`,
-    [user.id]
+    [user.id, find, '%' + find.replace(/[\\%_]/g, '\\$&') + '%']
   );
   const openGames = await gamesByIds(open.flatMap((l) => (l.games ?? '').split(',')));
   const mineIds = (await q('select game_id from user_games where user_id = $1', [user.id])).map((r) => r.game_id);
@@ -54,9 +56,14 @@ export default async function Leagues({ searchParams }) {
         <span>→</span>
       </Link>
 
-      {open.length > 0 && (
+      {(open.length > 0 || find) && (
         <>
           <h2>Public leagues</h2>
+          <form action="/leagues" method="get" className="card row" role="search">
+            <input className="grow" name="find" defaultValue={find} placeholder="Find a public league by name" aria-label="Find a public league" />
+            <button className="btn">Find</button>
+          </form>
+          {open.length === 0 && <p className="muted">No public leagues match “{find}”.</p>}
           <div className="list">
             {open.map((l) => (
               <form action={joinPublic} className="card list-row" key={l.id}>

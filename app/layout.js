@@ -5,6 +5,7 @@ import { unreadCount, remainingToday } from '@/lib/notify';
 import LogoutButton from './LogoutButton';
 import TzSync from './TzSync';
 import Nav from './Nav';
+import AlertWatcher from './AlertWatcher';
 
 export const metadata = {
   title: 'Daily League',
@@ -25,6 +26,7 @@ export default async function RootLayout({ children }) {
     <html lang="en">
       <body>
         <TzSync />
+        {user && <AlertWatcher />}
         <header className="top">
           <Link href="/" className="brand"><img src="/logo.svg" alt="" width="26" height="26" /> Daily League</Link>
           {user && <Nav username={user.username} alerts={alerts} />}

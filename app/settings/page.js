@@ -6,6 +6,7 @@ import { Flash } from '../ui';
 import Submit from '../Submit';
 import RecoveryCode from './RecoveryCode';
 import PushToggle from './PushToggle';
+import SoundToggle from './SoundToggle';
 import { isSiteAdmin } from '@/lib/admin';
 import { vapidKeys } from '@/lib/push';
 
@@ -37,7 +38,7 @@ export default async function Settings({ searchParams }) {
       </section>
 
       <h2>Notifications on this device</h2>
-      <section className="card"><PushToggle publicKey={(await vapidKeys()).publicKey} /></section>
+      <section className="card stack"><PushToggle publicKey={(await vapidKeys()).publicKey} /><SoundToggle /></section>
 
       <h2>Recovery code (backup)</h2>
       <section className="card">

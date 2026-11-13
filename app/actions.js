@@ -217,6 +217,8 @@ export async function submitScore(fd) {
     const parsed = game.parse(text);
     if (!parsed) fail('/', `That isn't a complete ${game.name} result. Use the game's Share button and paste everything it copies, unedited.`);
     ({ score, puzzleNo } = parsed);
+    // The paste box reports when the pasted text was changed before posting; such results count but are marked.
+    if (fd.get('edited') === '1') manual = true;
   } else {
     score = parseManual(game, manualInput);
     if (score === null) fail('/', `Enter a valid ${game.name} score.`);
@@ -250,7 +252,7 @@ export async function submitScore(fd) {
   const res = await q(
     `insert into scores (user_id, game_id, play_date, score, puzzle_no, raw, manual, flagged)
      values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (user_id, game_id, play_date) do nothing returning id`,
-    [user.id, id, date, score, puzzleNo, manual ? null : text, manual, flagged]
+    [user.id, id, date, score, puzzleNo, text || null, manual, flagged]
   );
   if (!res.length) fail('/', `You've already submitted ${game.name} for ${date === today ? 'today' : prettyDate(date)}. Scores are locked once posted.`);
   await q('insert into user_games (user_id, game_id) values ($1, $2) on conflict do nothing', [user.id, id]);
@@ -267,7 +269,7 @@ export async function submitScore(fd) {
   for (const [leagueId, ids] of Object.entries(byLeague)) {
     await notify(ids, {
       kind: 'score', link: `/leagues/${leagueId}`,
-      body: `${user.display_name} posted ${game.name}: ${formatScore(game, score)}${manual ? ' (entered by hand)' : ''}`,
+      body: `${user.display_name} posted ${game.name}: ${formatScore(game, score)}${manual ? (text ? ' (edited after pasting)' : ' (entered by hand)') : ''}`,
     });
   }
   ok('/', date === today ? `${game.name} score saved.` : `${game.name} score saved for ${prettyDate(date)}.`);
@@ -760,23 +762,3 @@ export async function setVisibility(fd) {
   ok(`/u/${user.username}`, 'Privacy setting saved.');
 }
 
-/* ---------- reactions ---------- */
-
-const REACTIONS = ['👏', '🔥', '😂', '💀'];
-
-export async function react(fd) {
-  const user = await requireUser();
-  const scoreId = Number(fd.get('score'));
-  const emoji = str(fd, 'emoji');
-  const back = safeNext(str(fd, 'back'));
-  const score = await q1('select user_id from scores where id = $1', [scoreId]);
-  if (!score || !REACTIONS.includes(emoji) || !(await canSee(user.id, score.user_id))) return;
-  const removed = await q(
-    'delete from reactions where score_id = $1 and user_id = $2 and emoji = $3 returning 1',
-    [scoreId, user.id, emoji]
-  );
-  if (!removed.length) {
-    await q('insert into reactions (score_id, user_id, emoji) values ($1, $2, $3)', [scoreId, user.id, emoji]);
-  }
-  revalidatePath(back.split('?')[0]);
-}

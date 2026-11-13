@@ -8,6 +8,7 @@ import { standings, withPositions } from '@/lib/points';
 import { submitScore, respondInvite } from './actions';
 import { Flash, Medal } from './ui';
 import ProofUpload from './ProofUpload';
+import PasteBox from './PasteBox';
 import Submit from './Submit';
 
 function Landing() {
@@ -130,7 +131,7 @@ export default async function Home({ searchParams }) {
                   <input type="hidden" name="game" value={g.id} />
                   {g.parse ? (
                     <>
-                      <textarea name="text" rows={2} placeholder={`Paste your ${g.name} result here`} aria-label={`${g.name} share text`} />
+                      <PasteBox placeholder={`Paste your ${g.name} result here`} label={`${g.name} share text`} />
                       <details>
                         <summary>No share text? Enter it by hand</summary>
                         <input name="manual" placeholder={manualHint(g)} aria-label={`${g.name} score`} />
