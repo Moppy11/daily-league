@@ -5,9 +5,9 @@ import { requireUser, userToday, gamesByIds } from '@/lib/auth';
 import { GAMES, formatScore, formatAvg } from '@/lib/games';
 import { addDays, isDate, weekStart, weeksBetween, weekLabel, prettyDate } from '@/lib/dates';
 import { weeklyWinners, weeklyWinCounts, leagueRecords } from '@/lib/records';
-import { loadLeague } from '@/lib/league';
+import { loadLeague, ensureRecap } from '@/lib/league';
 import { standings, gameStandings, withPositions, rankDay, POINTS } from '@/lib/points';
-import { inviteFriend, leaveLeague, setLeagueGames, react, nudge } from '../../actions';
+import { inviteFriend, leaveLeague, setLeagueGames, react, nudge, manageMember, queryScore, keepScore, removeScore } from '../../actions';
 import { Flash, Medal } from '../../ui';
 import CopyLink from '../../CopyLink';
 import Submit from '../../Submit';
@@ -20,13 +20,14 @@ export default async function LeaguePage({ params, searchParams }) {
   const user = await requireUser(`/leagues/${id}`);
   const data = /^\d+$/.test(id) ? await loadLeague(Number(id)) : null;
   if (!data) notFound();
-  const { league, members, games, scores } = data;
+  const { league, members, games, scores, weights, opts } = data;
   if (!members.some((m) => m.id === user.id)) {
     return <section className="card narrow"><h1>{league.name}</h1><p>You&apos;re not a member of this league. Ask a member for the invite link.</p></section>;
   }
 
   const today = await userToday();
   const thisWeek = weekStart(today);
+  await ensureRecap(data, thisWeek);
   const weeks = weeksBetween(addDays(league.start_date, 1), today);
   const season = sp.season === 'all' || weeks.includes(sp.season) ? sp.season : thisWeek;
   const gameList = Object.values(games).sort((a, b) => a.name.localeCompare(b.name));
@@ -44,20 +45,25 @@ export default async function LeaguePage({ params, searchParams }) {
   };
 
   const inSeason = season === 'all' ? scores : scores.filter((s) => s.play_date >= season && s.play_date <= addDays(season, 6));
-  const table = withPositions(tab === 'overall' ? standings(inSeason, games, members) : gameStandings(inSeason, games[tab], members));
+  const rule = season === 'all' ? opts.all : opts.week;
+  const build = (rows) => withPositions(tab === 'overall' ? standings(rows, games, members, rule) : gameStandings(rows, games[tab], members, rule));
+  const table = build(inSeason);
+  // Where everyone stood before today's results, for the up and down arrows.
+  const before = Object.fromEntries(build(inSeason.filter((s) => s.play_date < today)).map((r) => [r.user.id, r.pos]));
+  const anyToday = inSeason.some((s) => s.play_date === today);
 
   // Points earned today, shown beside the table while looking at a season that includes today.
   const showToday = season === 'all' || season === thisWeek;
   const todayPts = {};
   if (showToday) {
     const tGames = tab === 'overall' ? games : { [tab]: games[tab] };
-    for (const r of standings(scores.filter((s) => s.play_date === today), tGames, members)) todayPts[r.user.id] = r.played ? r.total : null;
+    for (const r of standings(scores.filter((s) => s.play_date === today), tGames, members, opts.all)) todayPts[r.user.id] = r.played ? r.total : null;
   }
 
   // Winners of finished weeks, how many weeks each player has won, and the all-time records.
-  const champions = weeklyWinners(scores, games, members, thisWeek);
+  const champions = weeklyWinners(scores, games, members, thisWeek, opts.week);
   const weekWins = weeklyWinCounts(champions);
-  const records = leagueRecords(scores, games, members, thisWeek);
+  const records = leagueRecords(scores, games, members, thisWeek, opts);
   const names = (r) => (r.users.length > 3 ? `${r.users.length} players` : r.users.map((u) => u.display_name).join(' & '));
 
   // Results for the chosen day.
@@ -72,6 +78,14 @@ export default async function LeaguePage({ params, searchParams }) {
   const pastes = dayScores.length
     ? Object.fromEntries((await q('select id, raw from scores where id = any($1) and raw is not null', [dayScores.map((s) => s.id)])).map((r) => [r.id, r.raw]))
     : {};
+  const flagRows = dayScores.length
+    ? await q(
+        `select score_id, count(*) as n, bool_or(user_id = $3) as mine from score_flags
+         where league_id = $2 and score_id = any($1) group by score_id`,
+        [dayScores.map((s) => s.id), league.id, user.id]
+      )
+    : [];
+  const flags = Object.fromEntries(flagRows.map((f) => [f.score_id, f]));
   const reactions = {};
   for (const r of reactionRows) (reactions[r.score_id] ??= {})[r.emoji] = r;
   const byId = Object.fromEntries(members.map((m) => [m.id, m]));
@@ -143,7 +157,14 @@ export default async function LeaguePage({ params, searchParams }) {
           <tbody>
             {table.map((r) => (
               <tr key={r.user.id} className={r.user.id === user.id ? 'me' : ''}>
-                <td><Medal pos={r.pos} /></td>
+                <td>
+                  <Medal pos={r.pos} />
+                  {showToday && anyToday && before[r.user.id] !== r.pos && (
+                    before[r.user.id] > r.pos
+                      ? <span className="move up" title={`Up ${before[r.user.id] - r.pos} since yesterday`}>▲</span>
+                      : <span className="move down" title={`Down ${r.pos - before[r.user.id]} since yesterday`}>▼</span>
+                  )}
+                </td>
                 <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link>{r.user.id === league.owner_id && <small className="muted"> · admin</small>}</td>
                 <td className="opt2">{r.played}</td>
                 <td className="opt">{r.wins}</td>
@@ -159,6 +180,9 @@ export default async function LeaguePage({ params, searchParams }) {
       <p className="muted small">
         Each day, each game: 1st gets {POINTS[0]}, then {POINTS.slice(1).join(', ')}, and 1 for anyone else who played. Ties share the better place.
         The table resets every Monday; whoever is top on Sunday night wins the week (🏆).
+        {Object.entries(weights).some(([, w]) => w > 1) && ` Weighted games: ${gameList.filter((g) => weights[g.id] > 1).map((g) => `${g.name} ×${weights[g.id]}`).join(', ')}.`}
+        {league.daily_cap && ` Only your best ${league.daily_cap} result${league.daily_cap === 1 ? '' : 's'} each day score points.`}
+        {league.drop_worst && ' Play all seven days and your lowest day is dropped.'}
         Tap a player to see their profile or add them as a friend.
       </p>
 
@@ -188,11 +212,11 @@ export default async function LeaguePage({ params, searchParams }) {
         const entries = dayScores.filter((s) => s.game_id === g.id);
         if (!entries.length) return null;
         const waiting = date === today ? members.filter((m) => !entries.some((e) => e.user_id === m.id)) : [];
-        const ranked = rankDay(entries, g.higherBetter);
+        const ranked = rankDay(entries, g.higherBetter, weights[g.id] ?? 1);
         entries.sort((a, b) => ranked.get(a.user_id).rank - ranked.get(b.user_id).rank);
         return (
           <div className="card day" key={g.id}>
-            <h3>{g.emoji} {g.name}</h3>
+            <h3>{g.emoji} {g.name}{weights[g.id] > 1 && <small className="muted"> ×{weights[g.id]} points</small>}</h3>
             {entries.map((s) => (
               <div className="result" key={s.id}>
                 <Medal pos={ranked.get(s.user_id).rank} />
@@ -200,6 +224,7 @@ export default async function LeaguePage({ params, searchParams }) {
                   <Link className="player" href={`/u/${byId[s.user_id].username}`}>{byId[s.user_id].display_name}</Link>
                   {s.manual && <small className="manual-score">✍️ Entered by hand, not verified</small>}
                   {s.flagged && <small className="manual-score">⚠️ Puzzle number differs from other players</small>}
+                  {flags[s.id] && <small className="manual-score queried">⚑ Queried by {flags[s.id].n} player{flags[s.id].n === 1 ? '' : 's'}</small>}
                 </span>
                 <b>{formatScore(g, s.score)}</b>
                 <span className="plus">+{ranked.get(s.user_id).points}</span>
@@ -220,6 +245,16 @@ export default async function LeaguePage({ params, searchParams }) {
                     <summary>See what was pasted</summary>
                     <pre>{pastes[s.id]}</pre>
                   </details>
+                )}
+                {(s.user_id !== user.id || isOwner) && (
+                  <form className="paste row score-tools">
+                    <input type="hidden" name="league" value={league.id} />
+                    <input type="hidden" name="score" value={s.id} />
+                    <input type="hidden" name="back" value={href({})} />
+                    {s.user_id !== user.id && !flags[s.id]?.mine && <button className="link" formAction={queryScore}>⚑ Query this result</button>}
+                    {isOwner && flags[s.id] && <button className="link" formAction={keepScore}>Keep it</button>}
+                    {isOwner && <button className="link danger-link" formAction={removeScore}>Remove from league</button>}
+                  </form>
                 )}
               </div>
             ))}
@@ -285,18 +320,49 @@ export default async function LeaguePage({ params, searchParams }) {
       )}
       {isOwner && (
         <details className="card">
-          <summary>Change which games count (admin only)</summary>
+          <summary>League settings (admin only)</summary>
           <form action={setLeagueGames} className="stack">
             <input type="hidden" name="league" value={league.id} />
-            <div className="checks">
-              {gameOptions.map((g) => (
-                <label key={g.id} className="check">
-                  <input type="checkbox" name="games" value={g.id} defaultChecked={!!games[g.id]} /> {g.emoji} {g.name}
-                </label>
-              ))}
-            </div>
-            <Submit>Save games</Submit>
+            <label>League name<input name="name" defaultValue={league.name} required maxLength={40} /></label>
+            <fieldset>
+              <legend>Games that count, and how much</legend>
+              <div className="checks weights">
+                {gameOptions.map((g) => (
+                  <span key={g.id} className="check">
+                    <label className="check grow">
+                      <input type="checkbox" name="games" value={g.id} defaultChecked={!!games[g.id]} /> {g.emoji} {g.name}
+                    </label>
+                    <select name={`weight_${g.id}`} defaultValue={weights[g.id] ?? 1} aria-label={`${g.name} points weighting`}>
+                      <option value="1">×1</option><option value="2">×2</option><option value="3">×3</option>
+                    </select>
+                  </span>
+                ))}
+              </div>
+            </fieldset>
+            <label>Results that score each day
+              <select name="daily_cap" defaultValue={league.daily_cap ?? ''}>
+                <option value="">All of them</option>
+                {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>Each player&apos;s best {n}</option>)}
+              </select>
+            </label>
+            <label className="check"><input type="checkbox" name="drop_worst" defaultChecked={league.drop_worst} /> Comeback rule: drop each player&apos;s lowest day of the week (needs all seven days played)</label>
+            <label className="check"><input type="checkbox" name="is_public" defaultChecked={league.is_public} /> Public league: anyone can find and join it</label>
+            <Submit>Save settings</Submit>
           </form>
+        </details>
+      )}
+      {isOwner && members.length > 1 && (
+        <details className="card">
+          <summary>Members (admin only)</summary>
+          {members.filter((m) => m.id !== user.id).map((m) => (
+            <form action={manageMember} className="result" key={m.id}>
+              <input type="hidden" name="league" value={league.id} />
+              <input type="hidden" name="member" value={m.id} />
+              <span className="grow">{m.display_name} <small className="muted">@{m.username}</small></span>
+              <Submit className="btn small" name="do" value="admin">Make admin</Submit>
+              <Submit className="btn small danger" name="do" value="remove">Remove</Submit>
+            </form>
+          ))}
         </details>
       )}
       <details className="card">

@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { q, q1 } from '@/lib/db';
-import { requireUser, gamesByIds } from '@/lib/auth';
+import { requireUser, gamesByIds, userToday } from '@/lib/auth';
+import { loadLeague, ensureRecap } from '@/lib/league';
+import { weekStart } from '@/lib/dates';
 import { GAMES } from '@/lib/games';
 import { ago } from '@/lib/dates';
 import { postMessage, requestGame, decideRequest } from '../../../actions';
@@ -23,6 +25,7 @@ export default async function Chat({ params, searchParams }) {
     : null;
   if (!league) notFound();
   const isAdmin = league.owner_id === user.id;
+  await ensureRecap(await loadLeague(league.id), weekStart(await userToday()));
 
   const messages = await q(
     `select m.id, m.kind, m.body, m.game_id, m.status, m.created_at, m.user_id, u.display_name, u.username
@@ -66,6 +69,14 @@ export default async function Chat({ params, searchParams }) {
           <div className="chat" aria-live="polite">
             {messages.map((m) => {
               const mine = m.user_id === user.id;
+              if (m.kind === 'recap') {
+                return (
+                  <div className="card recap" key={m.id}>
+                    <h3>📰 Weekly recap</h3>
+                    <p>{m.body}</p>
+                  </div>
+                );
+              }
               if (m.kind === 'request') {
                 const game = known[m.game_id];
                 return (

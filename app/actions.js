@@ -284,14 +284,89 @@ export async function setLeagueGames(fd) {
   const id = Number(fd.get('league'));
   const league = await membership(id, user.id);
   const path = `/leagues/${id}`;
-  if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league admin can change its games.');
+  if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league admin can change its settings.');
+  const name = str(fd, 'name') || league.name;
+  if (name.length < 2 || name.length > 40) fail(path, 'League name must be 2–40 characters.');
   const games = await gamesByIds(fd.getAll('games').map(String));
   if (!Object.keys(games).length) fail(path, 'A league needs at least one game.');
+  const cap = Number(fd.get('daily_cap'));
+  await q('update leagues set name = $1, is_public = $2, drop_worst = $3, daily_cap = $4 where id = $5', [
+    name, fd.get('is_public') === 'on', fd.get('drop_worst') === 'on', cap >= 1 && cap <= 10 ? cap : null, id,
+  ]);
   await q('delete from league_games where league_id = $1', [id]);
   for (const gid of Object.keys(games)) {
-    await q('insert into league_games (league_id, game_id) values ($1, $2)', [id, gid]);
+    const w = Number(fd.get('weight_' + gid));
+    await q('insert into league_games (league_id, game_id, weight) values ($1, $2, $3)', [id, gid, [1, 2, 3].includes(w) ? w : 1]);
   }
-  ok(path, 'League games updated.');
+  ok(path, 'League settings saved.');
+}
+
+// Admin: hand the league to another member, or remove a member.
+export async function manageMember(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const target = Number(fd.get('member'));
+  const league = await membership(id, user.id);
+  const path = `/leagues/${id}`;
+  if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league admin can manage members.');
+  if (target === user.id || !(await q1('select 1 from league_members where league_id = $1 and user_id = $2', [id, target]))) fail(path, 'Pick another member of this league.');
+  if (str(fd, 'do') === 'admin') {
+    await q('update leagues set owner_id = $1 where id = $2', [target, id]);
+    await notify([target], { kind: 'admin', link: path, body: `${user.display_name} made you the admin of ${league.name}` });
+    ok(path, 'Admin role handed over.');
+  }
+  await q('delete from league_members where league_id = $1 and user_id = $2', [id, target]);
+  await notify([target], { kind: 'admin', link: '/leagues', body: `You were removed from ${league.name} by the admin` });
+  ok(path, 'Player removed.');
+}
+
+// Any member can query a league-mate's result; the admin is told and decides.
+export async function queryScore(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const scoreId = Number(fd.get('score'));
+  const league = await membership(id, user.id);
+  const path = fd.get('back') ? safeNext(str(fd, 'back')) : `/leagues/${id}`;
+  if (!league?.is_member) fail('/leagues', 'You are not in that league.');
+  const score = await q1(
+    `select s.id, s.user_id, s.game_id, u.display_name from scores s join users u on u.id = s.user_id
+     join league_members m on m.user_id = s.user_id and m.league_id = $2 where s.id = $1`,
+    [scoreId, id]
+  );
+  if (!score || score.user_id === user.id) fail(path, 'You can only query another player\'s result.');
+  const added = await q('insert into score_flags (score_id, user_id, league_id) values ($1, $2, $3) on conflict do nothing returning 1', [scoreId, user.id, id]);
+  if (added.length) {
+    const game = (await gamesByIds([score.game_id]))[score.game_id];
+    await notify([league.owner_id], { kind: 'flag', link: path, body: `${user.display_name} queried ${score.display_name}'s ${game?.name ?? 'result'} in ${league.name}` });
+  }
+  ok(path, league.owner_id === user.id ? 'Result marked as queried.' : 'The admin has been told.');
+}
+
+// Admin: keep a queried result (clears the query) or take it out of this league's tables.
+// A button that picks its own action can't also carry a value, so each choice is its own action.
+export async function keepScore(fd) { return decideScore(fd, 'keep'); }
+export async function removeScore(fd) { return decideScore(fd, 'remove'); }
+
+async function decideScore(fd, choice) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const scoreId = Number(fd.get('score'));
+  const league = await membership(id, user.id);
+  const path = fd.get('back') ? safeNext(str(fd, 'back')) : `/leagues/${id}`;
+  if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league admin can do that.');
+  const score = await q1(
+    `select s.id, s.user_id, s.game_id from scores s join league_members m on m.user_id = s.user_id and m.league_id = $2 where s.id = $1`,
+    [scoreId, id]
+  );
+  if (!score) fail(path, 'That result is not in this league.');
+  await q('delete from score_flags where score_id = $1 and league_id = $2', [scoreId, id]);
+  if (choice === 'remove') {
+    await q('insert into league_exclusions (league_id, score_id) values ($1, $2) on conflict do nothing', [id, scoreId]);
+    const game = (await gamesByIds([score.game_id]))[score.game_id];
+    await notify([score.user_id], { kind: 'admin', link: path, body: `The admin removed your ${game?.name ?? ''} result from ${league.name}` });
+    ok(path, 'Result removed from this league.');
+  }
+  ok(path, 'Result kept.');
 }
 
 export async function inviteFriend(fd) {

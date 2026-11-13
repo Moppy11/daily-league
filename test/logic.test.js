@@ -190,3 +190,33 @@ test('Perceptle: overall score is the average of the five tests and sets the gra
   const ranking = rankDay([{ user_id: 1, score: 64 }, { user_id: 2, score: 80 }], game.higherBetter);
   assert.equal(ranking.get(2).points, 10);
 });
+
+test('league options: weighting, daily cap, dropped day, weekly recap', async () => {
+  const { weeklyRecap } = await import('../lib/records.js');
+  const games = { krillion: builtin('krillion'), wordle: builtin('wordle'), fermi: builtin('fermi') };
+  const members = [1, 2].map((id) => ({ id, display_name: 'P' + id }));
+  const s = (user_id, game_id, play_date, score) => ({ user_id, game_id, play_date, score });
+  const day = [s(1, 'krillion', '2026-11-09', 500), s(2, 'krillion', '2026-11-09', 300), s(1, 'wordle', '2026-11-09', 5), s(2, 'wordle', '2026-11-09', 3),
+    s(1, 'fermi', '2026-11-09', 9), s(2, 'fermi', '2026-11-09', 2)];
+  const total = (opts) => Object.fromEntries(standings(day, games, members, opts).map((r) => [r.user.id, r.total]));
+  assert.deepEqual(total({}), { 1: 24, 2: 27 });
+  assert.deepEqual(total({ weights: { krillion: 3 } }), { 1: 44, 2: 41 });          // 30+7+7 v 21+10+10
+  assert.deepEqual(total({ dailyCap: 1 }), { 1: 10, 2: 10 });                        // best single result each
+  assert.deepEqual(total({ dailyCap: 2, weights: { krillion: 2 } }), { 1: 27, 2: 24 }); // 20+7 v 14+10
+
+  // Dropped day: P1 plays all seven days, P2 misses one.
+  const week = [];
+  for (let d = 9; d <= 15; d++) {
+    const date = `2026-11-${String(d).padStart(2, '0')}`;
+    week.push(s(1, 'krillion', date, d === 15 ? 100 : 500));
+    if (d !== 12) week.push(s(2, 'krillion', date, 300));
+  }
+  const plain = standings(week, games, members), comeback = standings(week, games, members, { dropWorst: true });
+  assert.deepEqual(plain.map((r) => [r.user.id, r.total]), [[1, 67], [2, 52]]);   // 6 wins (one alone) + one 2nd v 5 seconds + 1 win
+  assert.deepEqual(comeback.map((r) => [r.user.id, r.total, r.dropped]), [[1, 60, 7], [2, 52, 0]]);
+
+  const recap = weeklyRecap(week, games, members, '2026-11-09', {});
+  assert.match(recap, /🏆 Winner: P1 with 67 pts/);
+  assert.match(recap, /Winning margin: 15 pts over P2/);
+  assert.equal(weeklyRecap([], games, members, '2026-11-09', {}), null);
+});

@@ -253,3 +253,16 @@ a.link { text-decoration: none; font-size: 1.05rem; }
 .code { font: 600 1.1rem/1.4 ui-monospace, Menlo, monospace; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px dashed var(--line); text-align: center; user-select: all; word-break: break-all; }
 @media (max-width: 719px) { .top { gap: 6px; } .brand { margin-right: auto; } }
 .quick { margin: -4px 0 10px; }
+
+/* ---- admin tools, arrows, recap ---- */
+.move { font-size: .62rem; margin-left: 2px; vertical-align: middle; }
+.move.up { color: var(--ok); }
+.move.down { color: var(--err); }
+.queried { color: var(--err); }
+.score-tools { gap: 14px; align-items: center; }
+.danger-link { color: var(--err); }
+.weights { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.weights .check { display: flex; align-items: center; gap: 8px; }
+.weights select { width: auto; padding: 4px 8px; }
+.recap { margin: 0; border-color: var(--accent); }
+.recap p { white-space: pre-wrap; margin: 0; line-height: 1.7; }

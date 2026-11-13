@@ -145,7 +145,7 @@ export default async function Home({ searchParams }) {
         </div>
       )}
       {leagues.map((l) => {
-        const table = withPositions(standings(l.scores.filter((s) => s.play_date >= week), l.games, l.members));
+        const table = withPositions(standings(l.scores.filter((s) => s.play_date >= week), l.games, l.members, l.opts.week));
         const me = table.find((r) => r.user.id === user.id);
         return (
           <Link href={`/leagues/${l.league.id}`} className="card league-row" key={l.league.id}>
