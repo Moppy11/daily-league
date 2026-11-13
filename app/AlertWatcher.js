@@ -49,7 +49,9 @@ export default function AlertWatcher() {
       try {
         const res = await fetch('/api/alerts', { cache: 'no-store' });
         const data = await res.json();
-        if (stop || !data.signedIn || !data.latest) return;
+        if (stop || !data.signedIn) return;
+        // No notifications yet: start from nothing, so the very first one still gets a banner.
+        if (!data.latest) { lastId.current ??= 0; return; }
         const first = lastId.current === null;
         if (!first && data.latest.id > lastId.current && !data.latest.link.startsWith(path === '/' ? '\0' : path)) {
           setBanner(data.latest);
