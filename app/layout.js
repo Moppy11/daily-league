@@ -9,8 +9,9 @@ import Nav from './Nav';
 export const metadata = {
   title: 'Daily League',
   description: 'Compete with friends across your daily games.',
+  appleWebApp: { capable: true, title: 'Daily League', statusBarStyle: 'default' },
 };
-export const viewport = { width: 'device-width', initialScale: 1 };
+export const viewport = { width: 'device-width', initialScale: 1, themeColor: '#2f6bff' };
 
 export default async function RootLayout({ children }) {
   const user = await getUser();
@@ -25,8 +26,9 @@ export default async function RootLayout({ children }) {
       <body>
         <TzSync />
         <header className="top">
-          <Link href="/" className="brand">🏆 Daily League</Link>
+          <Link href="/" className="brand"><img src="/logo.svg" alt="" width="26" height="26" /> Daily League</Link>
           {user && <Nav username={user.username} alerts={alerts} />}
+          {user && <Link href="/settings" className="link" aria-label="Settings" title="Settings">⚙️</Link>}
           {user && <LogoutButton />}
         </header>
         <main>{children}</main>

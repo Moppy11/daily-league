@@ -41,6 +41,7 @@ export async function signup(fd) {
   );
   if (!user) fail(back, 'That username is taken.');
   await createSession(user.id);
+  await notify([user.id], { kind: 'account', link: '/settings', body: 'Welcome! Create a recovery code in Settings so you can reset your password if you forget it.' });
   redirect(next);
 }
 
@@ -54,6 +55,44 @@ export async function login(fd) {
   }
   await createSession(user.id);
   redirect(next);
+}
+
+// One-time code for resetting a forgotten password. Shown once; only its hash is kept.
+export async function createRecoveryCode() {
+  const user = await requireUser();
+  const code = randomBytes(10).toString('hex').match(/.{4}/g).join('-');
+  await q('update users set recovery_hash = $1 where id = $2', [await bcrypt.hash(code, 10), user.id]);
+  return { code };
+}
+
+export async function resetPassword(fd) {
+  const username = str(fd, 'username').toLowerCase();
+  const code = str(fd, 'code').toLowerCase().replace(/\s/g, '');
+  const password = String(fd.get('password') ?? '');
+  if (password.length < 8) fail('/reset', 'Password must be at least 8 characters.');
+  const user = await q1('select id, recovery_hash from users where username = $1', [username]);
+  // Same message whether the username or the code is wrong.
+  if (!user?.recovery_hash || !(await bcrypt.compare(code, user.recovery_hash))) fail('/reset', 'That username and recovery code don\'t match.');
+  await q('update users set pass_hash = $1, recovery_hash = null where id = $2', [await bcrypt.hash(password, 10), user.id]);
+  await q('delete from sessions where user_id = $1', [user.id]);
+  await createSession(user.id);
+  await notify([user.id], { kind: 'account', link: '/settings', body: 'Password reset. Your recovery code has been used, so create a new one.' });
+  redirect('/');
+}
+
+export async function deleteAccount(fd) {
+  const user = await requireUser();
+  const row = await q1('select pass_hash from users where id = $1', [user.id]);
+  if (!(await bcrypt.compare(String(fd.get('password') ?? ''), row.pass_hash))) fail('/settings', 'Wrong password. Your account was not deleted.');
+  // Leagues this player runs pass to their longest-standing other member; empty ones close.
+  const owned = await q('select id from leagues where owner_id = $1', [user.id]);
+  for (const l of owned) {
+    const heir = await q1('select user_id from league_members where league_id = $1 and user_id <> $2 order by joined_at limit 1', [l.id, user.id]);
+    if (heir) await q('update leagues set owner_id = $1 where id = $2', [heir.user_id, l.id]);
+  }
+  await q('delete from users where id = $1', [user.id]);
+  await destroySession();
+  redirect('/');
 }
 
 export async function logout() {

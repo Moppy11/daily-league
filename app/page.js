@@ -93,6 +93,7 @@ export default async function Home({ searchParams }) {
       <div className="cols today">
       <div>
       <h2>Today&apos;s games</h2>
+      {games.length > 0 && <p className="muted small quick"><Link href="/share">Quick paste: drop in any result and we&apos;ll work out the game →</Link></p>}
       {games.length === 0 && (
         <div className="card empty">
           <p>You haven&apos;t added any games yet.</p>

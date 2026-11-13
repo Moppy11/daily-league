@@ -245,3 +245,11 @@ a.notice { flex-wrap: nowrap; }
 .records dd b { margin-right: 4px; }
 .stats:not(.tight) { grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); }
 @media (max-width: 480px) { table .opt2 { display: none; } }
+
+/* ---- brand, settings ---- */
+.brand { display: inline-flex; align-items: center; gap: 8px; }
+.brand img { border-radius: 6px; display: block; }
+a.link { text-decoration: none; font-size: 1.05rem; }
+.code { font: 600 1.1rem/1.4 ui-monospace, Menlo, monospace; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px dashed var(--line); text-align: center; user-select: all; word-break: break-all; }
+@media (max-width: 719px) { .top { gap: 6px; } .brand { margin-right: auto; } }
+.quick { margin: -4px 0 10px; }

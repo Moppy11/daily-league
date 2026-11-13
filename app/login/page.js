@@ -24,6 +24,7 @@ export default async function Page({ searchParams }) {
         </label>
         <Submit>Log in</Submit>
       </form>
+      <p className="muted"><Link href="/reset">Forgot your password?</Link></p>
       <p className="muted">New here? <Link href={`/signup?next=${encodeURIComponent(next)}`}>Create an account</Link></p>
     </section>
   );
