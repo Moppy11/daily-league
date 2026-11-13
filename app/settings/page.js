@@ -6,6 +6,7 @@ import { Flash } from '../ui';
 import Submit from '../Submit';
 import RecoveryCode from './RecoveryCode';
 import PushToggle from './PushToggle';
+import { isSiteAdmin } from '@/lib/admin';
 import { vapidKeys } from '@/lib/push';
 
 export default async function Settings({ searchParams }) {
@@ -19,6 +20,7 @@ export default async function Settings({ searchParams }) {
     <>
       <h1>Settings</h1>
       <p className="muted">Signed in as <b>@{user.username}</b></p>
+      {isSiteAdmin(user) && <Link href="/admin" className="card list-row"><span className="emoji">📊</span><span className="grow"><b>Admin dashboard</b><small className="muted">Accounts, sign-ups and activity. Only you can see it.</small></span><span>→</span></Link>}
       <Flash sp={sp} />
 
       <h2>Email</h2>

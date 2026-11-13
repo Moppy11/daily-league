@@ -52,6 +52,7 @@ adding these environment variables in the Vercel project (Settings → Environme
 - `RESEND_API_KEY`: an API key from resend.com
 - `EMAIL_FROM`: the sender, e.g. `Daily League <hello@yourdomain.com>`, on a domain verified in Resend
 - `CONTACT_EMAIL` (optional): shown on the privacy page
+- `ADMIN_USERNAMES`: your username (comma-separate several) to open the `/admin` dashboard; nobody can open it until this is set
 - `APP_URL` (optional): the site's address for links in emails; defaults to the Vercel production domain
 
 Until the first two are set, the "Forgot your password?" page offers recovery codes only.

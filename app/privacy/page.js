@@ -18,7 +18,7 @@ export default function Privacy() {
 
       <h2>Who can see it</h2>
       <ul>
-        <li>Your email address is never shown to other players. It&apos;s used only for password reset links and messages about your account.</li>
+        <li>Your email address is never shown to other players. It&apos;s used only for password reset links and messages about your account. The person who runs the site can see it, to help with account problems.</li>
         <li>Players in your leagues see the results you post there and your chat messages.</li>
         <li>Your stats page is visible to friends by default. You can make it public or private in your stats page settings.</li>
       </ul>
