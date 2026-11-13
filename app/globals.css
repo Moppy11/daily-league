@@ -275,3 +275,6 @@ a.link { text-decoration: none; font-size: 1.05rem; }
 .duel-form summary { color: var(--text); font-weight: 600; font-size: .95rem; }
 .msg-tools { display: flex; gap: 10px; align-items: center; margin-top: 2px; }
 .msg-tools .link { padding: 0; font-size: .75rem; }
+.proof-upload { display: block; margin-top: 6px; }
+.proof-link { font-size: .88rem; }
+.game.done .link { padding-left: 0; }

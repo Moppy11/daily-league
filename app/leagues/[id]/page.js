@@ -86,6 +86,7 @@ export default async function LeaguePage({ params, searchParams }) {
       )
     : [];
   const flags = Object.fromEntries(flagRows.map((f) => [f.score_id, f]));
+  const proofs = new Set(dayScores.length ? (await q('select score_id from proofs where score_id = any($1)', [dayScores.map((s) => s.id)])).map((r) => r.score_id) : []);
   const reactions = {};
   for (const r of reactionRows) (reactions[r.score_id] ??= {})[r.emoji] = r;
   const byId = Object.fromEntries(members.map((m) => [m.id, m]));
@@ -246,6 +247,7 @@ export default async function LeaguePage({ params, searchParams }) {
                     <pre>{pastes[s.id]}</pre>
                   </details>
                 )}
+                {proofs.has(s.id) && <a className="paste proof-link" href={`/proof/${s.id}`} target="_blank" rel="noreferrer">📷 See screenshot</a>}
                 {(s.user_id !== user.id || isOwner) && (
                   <form className="paste row score-tools">
                     <input type="hidden" name="league" value={league.id} />

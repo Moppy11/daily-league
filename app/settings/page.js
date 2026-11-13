@@ -5,6 +5,8 @@ import { deleteAccount, unblockUser } from '../actions';
 import { Flash } from '../ui';
 import Submit from '../Submit';
 import RecoveryCode from './RecoveryCode';
+import PushToggle from './PushToggle';
+import { vapidKeys } from '@/lib/push';
 
 export default async function Settings({ searchParams }) {
   const sp = await searchParams;
@@ -18,6 +20,9 @@ export default async function Settings({ searchParams }) {
       <h1>Settings</h1>
       <p className="muted">Signed in as <b>@{user.username}</b></p>
       <Flash sp={sp} />
+
+      <h2>Notifications on this device</h2>
+      <section className="card"><PushToggle publicKey={(await vapidKeys()).publicKey} /></section>
 
       <h2>Password recovery</h2>
       <section className="card">

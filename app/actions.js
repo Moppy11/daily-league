@@ -9,6 +9,7 @@ import { createSession, destroySession, requireUser, userToday, gamesByIds, canS
 import { parseManual, expectedPuzzle, puzzleDate } from '@/lib/games';
 import { addDays, todayIn, prettyDate } from '@/lib/dates';
 import { notify } from '@/lib/notify';
+import { sendPush } from '@/lib/push';
 import { formatScore } from '@/lib/games';
 
 const str = (fd, k) => String(fd.get(k) ?? '').trim();
@@ -484,6 +485,49 @@ export async function nudge(fd) {
   );
   await notify(targets.map((r) => r.user_id), { kind: 'nudge', link: '/', body });
   ok(path, targets.length ? `Reminder sent to ${targets.length} player${targets.length === 1 ? '' : 's'}.` : 'Everyone still to play has already been reminded today.');
+}
+
+/* ---------- push notifications and screenshot proof ---------- */
+
+export async function savePushSub(sub) {
+  const user = await requireUser();
+  const endpoint = String(sub?.endpoint ?? ''), p256dh = String(sub?.keys?.p256dh ?? ''), auth = String(sub?.keys?.auth ?? '');
+  if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth || p256dh.length > 200 || auth.length > 100) return false;
+  await q(
+    `insert into push_subs (endpoint, user_id, p256dh, auth) values ($1, $2, $3, $4)
+     on conflict (endpoint) do update set user_id = $2, p256dh = $3, auth = $4`,
+    [endpoint, user.id, p256dh, auth]
+  );
+  return true;
+}
+
+export async function removePushSub(endpoint) {
+  const user = await requireUser();
+  await q('delete from push_subs where endpoint = $1 and user_id = $2', [String(endpoint), user.id]);
+  return true;
+}
+
+export async function testPush() {
+  const user = await requireUser();
+  return (await sendPush([user.id], { body: 'Notifications are working on this device.', url: '/notifications' })) > 0;
+}
+
+// Attach a screenshot to one of your own results. The browser sends a shrunk JPEG.
+export async function addProof(fd) {
+  const user = await requireUser();
+  const file = fd.get('image');
+  const score = await q1('select id from scores where id = $1 and user_id = $2', [Number(fd.get('score')), user.id]);
+  if (!score) return { error: 'That result isn\'t yours.' };
+  if (!file || typeof file.arrayBuffer !== 'function' || file.size > 900_000) return { error: 'That picture is too large.' };
+  const data = Buffer.from(await file.arrayBuffer());
+  if (data.length < 100 || data[0] !== 0xff || data[1] !== 0xd8) return { error: 'That file isn\'t a picture.' };
+  await q(
+    `insert into proofs (score_id, mime, data) values ($1, 'image/jpeg', $2)
+     on conflict (score_id) do update set data = $2, created_at = now()`,
+    [score.id, data]
+  );
+  await q(`delete from proofs where created_at < now() - interval '30 days'`); // screenshots are kept for a month
+  return { ok: true };
 }
 
 /* ---------- chat moderation ---------- */

@@ -7,6 +7,7 @@ import { loadLeague } from '@/lib/league';
 import { standings, withPositions } from '@/lib/points';
 import { submitScore, respondInvite } from './actions';
 import { Flash, Medal } from './ui';
+import ProofUpload from './ProofUpload';
 import Submit from './Submit';
 
 function Landing() {
@@ -50,7 +51,11 @@ export default async function Home({ searchParams }) {
   const ids = new Set(mine.map((r) => r.game_id));
   for (const l of leagues) for (const id of Object.keys(l.games)) ids.add(id);
   const games = Object.values(await gamesByIds([...ids])).sort((a, b) => a.name.localeCompare(b.name));
-  const todays = await q('select game_id, score, manual from scores where user_id = $1 and play_date = $2', [user.id, today]);
+  const todays = await q(
+    `select s.id, s.game_id, s.score, s.manual, exists (select 1 from proofs p where p.score_id = s.id) as has_proof
+     from scores s where s.user_id = $1 and s.play_date = $2`,
+    [user.id, today]
+  );
   const done = Object.fromEntries(todays.map((s) => [s.game_id, s]));
   games.sort((a, b) => !!done[a.id] - !!done[b.id]); // still-to-post first
 
@@ -111,6 +116,9 @@ export default async function Home({ searchParams }) {
                 {s ? <span className="score">{formatScore(g, s.score)} 🔒</span>
                   : g.url && <a className="btn small" href={g.url} target="_blank" rel="noreferrer">Play ↗</a>}
               </div>
+              {s && (s.has_proof
+                ? <a className="link" href={`/proof/${s.id}`} target="_blank" rel="noreferrer">📷 Screenshot attached</a>
+                : <ProofUpload scoreId={s.id} />)}
               {!s && (
                 <form action={submitScore} className="stack">
                   <input type="hidden" name="game" value={g.id} />
