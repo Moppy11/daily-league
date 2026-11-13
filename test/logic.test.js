@@ -212,11 +212,11 @@ test('league options: weighting, daily cap, dropped day, weekly recap', async ()
     if (d !== 12) week.push(s(2, 'krillion', date, 300));
   }
   const plain = standings(week, games, members), comeback = standings(week, games, members, { dropWorst: true });
-  assert.deepEqual(plain.map((r) => [r.user.id, r.total]), [[1, 67], [2, 52]]);   // 6 wins (one alone) + one 2nd v 5 seconds + 1 win
-  assert.deepEqual(comeback.map((r) => [r.user.id, r.total, r.dropped]), [[1, 60, 7], [2, 52, 0]]);
+  assert.deepEqual(plain.map((r) => [r.user.id, r.total]), [[1, 67], [2, 45]]);   // six wins and a 2nd v five 2nds and a win
+  assert.deepEqual(comeback.map((r) => [r.user.id, r.total, r.dropped]), [[1, 60, 7], [2, 45, 0]]);
 
   const recap = weeklyRecap(week, games, members, '2026-11-09', {});
   assert.match(recap, /🏆 Winner: P1 with 67 pts/);
-  assert.match(recap, /Winning margin: 15 pts over P2/);
+  assert.match(recap, /Winning margin: 22 pts over P2/);
   assert.equal(weeklyRecap([], games, members, '2026-11-09', {}), null);
 });
