@@ -15,7 +15,7 @@ export default async function Page({ searchParams }) {
       <Flash sp={sp} />
       <form action={login} className="stack">
         <input type="hidden" name="next" value={next} />
-        <label>Username
+        <label>Username or email
           <input name="username" required autoCapitalize="none" autoComplete="username" />
         </label>
 
@@ -24,7 +24,7 @@ export default async function Page({ searchParams }) {
         </label>
         <Submit>Log in</Submit>
       </form>
-      <p className="muted"><Link href="/reset">Forgot your password?</Link></p>
+      <p className="muted"><Link href="/forgot">Forgot your password?</Link></p>
       <p className="muted">New here? <Link href={`/signup?next=${encodeURIComponent(next)}`}>Create an account</Link></p>
     </section>
   );

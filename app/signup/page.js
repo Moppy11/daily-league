@@ -21,11 +21,16 @@ export default async function Page({ searchParams }) {
         <label>Display name
           <input name="display_name" maxLength={30} placeholder="What friends see" />
         </label>
+        <label>Email
+          <input name="email" type="email" required maxLength={254} autoComplete="email" autoCapitalize="none" />
+          <small className="muted">Only used to reset your password. Never shown to other players.</small>
+        </label>
         <label>Password
           <input name="password" type="password" required minLength={8} autoComplete="new-password" />
         </label>
         <Submit>Create your account</Submit>
       </form>
+      <p className="muted small">By creating an account you agree to the <Link href="/privacy">privacy policy</Link>.</p>
       <p className="muted">Already playing? <Link href={`/login?next=${encodeURIComponent(next)}`}>Log in</Link></p>
     </section>
   );

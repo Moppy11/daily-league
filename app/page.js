@@ -81,6 +81,12 @@ export default async function Home({ searchParams }) {
       </div>
       <Flash sp={sp} />
 
+      {!user.email && (
+        <Link href="/settings" className="card notice">
+          <span>📧 <b>Add your email</b> so you can reset your password if you ever forget it.</span>
+          <span>→</span>
+        </Link>
+      )}
       {invites.map((i) => (
         <div className="card notice" key={i.id}>
           <span><b>{i.inviter}</b> invited you to <b>{i.name}</b></span>

@@ -3,7 +3,8 @@
 import bcrypt from 'bcryptjs';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
+import { emailEnabled, validEmail, sendEmail, siteUrl, escapeHtml } from '@/lib/email';
 import { q, q1 } from '@/lib/db';
 import { createSession, destroySession, requireUser, userToday, gamesByIds, canSee } from '@/lib/auth';
 import { parseManual, expectedPuzzle, puzzleDate } from '@/lib/games';
@@ -28,21 +29,25 @@ const safeNext = (p) => (typeof p === 'string' && p.startsWith('/') && !p.starts
 export async function signup(fd) {
   const username = str(fd, 'username').toLowerCase();
   const display = str(fd, 'display_name') || username;
+  const email = str(fd, 'email').toLowerCase();
   const password = String(fd.get('password') ?? '');
   const next = safeNext(str(fd, 'next'));
   const back = `/signup?next=${encodeURIComponent(next)}`;
   if (!/^[a-z0-9_]{3,20}$/.test(username)) fail(back, 'Username must be 3–20 letters, numbers or underscores.');
+  if (!validEmail(email)) fail(back, 'Enter a valid email address.');
   if (password.length < 8) fail(back, 'Password must be at least 8 characters.');
   if (display.length > 30) fail(back, 'Display name is too long.');
   if (await q1('select 1 from users where username = $1', [username])) fail(back, 'That username is taken.');
+  const emailTaken = 'An account already uses that email. Log in, or reset your password from the log-in page.';
+  if (await q1('select 1 from users where lower(email) = $1', [email])) fail(back, emailTaken);
   const hash = await bcrypt.hash(password, 10);
   const user = await q1(
-    'insert into users (username, display_name, pass_hash) values ($1, $2, $3) on conflict (username) do nothing returning id',
-    [username, display, hash]
+    'insert into users (username, display_name, pass_hash, email) values ($1, $2, $3, $4) on conflict do nothing returning id',
+    [username, display, hash, email]
   );
-  if (!user) fail(back, 'That username is taken.');
+  // Someone else took the username or email in the moment between the checks and the insert.
+  if (!user) fail(back, (await q1('select 1 from users where username = $1', [username])) ? 'That username is taken.' : emailTaken);
   await createSession(user.id);
-  await notify([user.id], { kind: 'account', link: '/settings', body: 'Welcome! Create a recovery code in Settings so you can reset your password if you forget it.' });
   redirect(next);
 }
 
@@ -50,12 +55,73 @@ export async function login(fd) {
   const username = str(fd, 'username').toLowerCase();
   const password = String(fd.get('password') ?? '');
   const next = safeNext(str(fd, 'next'));
-  const user = await q1('select id, pass_hash from users where username = $1', [username]);
+  // Either the username or the email address works.
+  const user = await q1('select id, pass_hash from users where username = $1 or lower(email) = $1', [username]);
   if (!user || !(await bcrypt.compare(password, user.pass_hash))) {
-    fail(`/login?next=${encodeURIComponent(next)}`, 'Wrong username or password.');
+    fail(`/login?next=${encodeURIComponent(next)}`, 'Wrong username, email or password.');
   }
   await createSession(user.id);
   redirect(next);
+}
+
+/* ---------- email and reset links ---------- */
+
+const tokenHash = (t) => createHash('sha256').update(t).digest('hex');
+
+// Email a one-hour reset link. The reply is the same whether or not the account exists or has an email,
+// so the form can't be used to find out who has an account.
+export async function requestReset(fd) {
+  const who = str(fd, 'who').toLowerCase().replace(/^@/, '');
+  if (!emailEnabled()) fail('/forgot', "Reset by email isn't switched on yet. Use a recovery code instead.");
+  if (!who) fail('/forgot', 'Enter your username or email.');
+  const user = await q1('select id, username, email from users where (username = $1 or lower(email) = $1) and email is not null', [who]);
+  if (user) {
+    const recent = await q1(`select count(*) as n from password_resets where user_id = $1 and created_at > now() - interval '1 hour'`, [user.id]);
+    if (recent.n < 3) {
+      const token = randomBytes(32).toString('base64url');
+      await q(`insert into password_resets (token_hash, user_id, expires) values ($1, $2, now() + interval '1 hour')`, [tokenHash(token), user.id]);
+      await q(`delete from password_resets where expires < now() - interval '1 day'`);
+      const link = `${await siteUrl()}/reset/${token}`;
+      await sendEmail({
+        to: user.email,
+        subject: 'Reset your Daily League password',
+        text: `Hi ${user.username},\n\nUse this link to choose a new Daily League password. It works once, for the next hour:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email; your password hasn't changed.`,
+        html: `<p>Hi ${escapeHtml(user.username)},</p><p>Use this link to choose a new Daily League password. It works once, for the next hour:</p>`
+          + `<p><a href="${escapeHtml(link)}" style="display:inline-block;padding:10px 16px;background:#2f6bff;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Reset my password</a></p>`
+          + `<p style="color:#666">If you didn't ask for this, you can ignore this email; your password hasn't changed.</p>`,
+      });
+    }
+  }
+  ok('/forgot', "If that account has an email address, a reset link is on its way. Check your inbox (and spam folder); the link works for one hour.");
+}
+
+export async function resetWithLink(fd) {
+  const token = str(fd, 'token');
+  const back = `/reset/${encodeURIComponent(token)}`;
+  const password = String(fd.get('password') ?? '');
+  if (password.length < 8) fail(back, 'Password must be at least 8 characters.');
+  // Used and checked in one step, so a link can never work twice.
+  const row = await q1(
+    `update password_resets set used_at = now() where token_hash = $1 and used_at is null and expires > now() returning user_id`,
+    [tokenHash(token)]
+  );
+  if (!row) fail('/forgot', 'That reset link has expired or already been used. Ask for a new one.');
+  await q('update users set pass_hash = $1 where id = $2', [await bcrypt.hash(password, 10), row.user_id]);
+  await q('delete from sessions where user_id = $1', [row.user_id]);
+  await q('update password_resets set used_at = now() where user_id = $1 and used_at is null', [row.user_id]);
+  await createSession(row.user_id);
+  ok('/', 'Password changed. You are logged in.');
+}
+
+export async function setEmail(fd) {
+  const user = await requireUser();
+  const email = str(fd, 'email').toLowerCase();
+  const row = await q1('select pass_hash from users where id = $1', [user.id]);
+  if (!validEmail(email)) fail('/settings', 'Enter a valid email address.');
+  if (!(await bcrypt.compare(String(fd.get('password') ?? ''), row.pass_hash))) fail('/settings', 'Wrong password. Your email was not changed.');
+  if (await q1('select 1 from users where lower(email) = $1 and id <> $2', [email, user.id])) fail('/settings', 'Another account already uses that email.');
+  await q('update users set email = $1 where id = $2', [email, user.id]);
+  ok('/settings', 'Email saved.');
 }
 
 // One-time code for resetting a forgotten password. Shown once; only its hash is kept.

@@ -16,7 +16,7 @@ export default async function Reset({ searchParams }) {
         <label>New password<input name="password" type="password" required minLength={8} autoComplete="new-password" /></label>
         <Submit>Set new password</Submit>
       </form>
-      <p className="muted"><Link href="/login">Back to log in</Link></p>
+      <p className="muted"><Link href="/forgot">Reset by email instead</Link> · <Link href="/login">Back to log in</Link></p>
     </section>
   );
 }

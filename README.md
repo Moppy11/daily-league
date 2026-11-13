@@ -43,3 +43,15 @@ Change the values in `lib/points.js`.
 
 Games live in `lib/games.js`. Each has a `parse(text)` that returns `{ puzzleNo, score }` or `null`.
 Add a case to `test/logic.test.js` with a real share text when you change one.
+
+## Email (password reset links)
+
+Sign-up asks for an email address, used only for password reset links. Sending is switched on by
+adding these environment variables in the Vercel project (Settings → Environment Variables):
+
+- `RESEND_API_KEY`: an API key from resend.com
+- `EMAIL_FROM`: the sender, e.g. `Daily League <hello@yourdomain.com>`, on a domain verified in Resend
+- `CONTACT_EMAIL` (optional): shown on the privacy page
+- `APP_URL` (optional): the site's address for links in emails; defaults to the Vercel production domain
+
+Until the first two are set, the "Forgot your password?" page offers recovery codes only.
