@@ -294,7 +294,7 @@ export async function createLeague(fd) {
   if (!Object.keys(games).length) fail('/leagues', 'Pick at least one game.');
   const code = randomBytes(5).toString('hex');
   const league = await q1('insert into leagues (name, code, owner_id) values ($1, $2, $3) returning id', [name, code, user.id]);
-  await q('insert into league_members (league_id, user_id) values ($1, $2)', [league.id, user.id]);
+  await q('insert into league_members (league_id, user_id, joined_on) values ($1, $2, $3)', [league.id, user.id, await userToday()]);
   for (const id of Object.keys(games)) {
     await q('insert into league_games (league_id, game_id) values ($1, $2)', [league.id, id]);
   }
@@ -321,7 +321,7 @@ export async function joinLeague(fd) {
   const code = (str(fd, 'code').toLowerCase().match(/[0-9a-f]{10}/) ?? [''])[0];
   const league = await q1('select id, name, owner_id from leagues where code = $1', [code]);
   if (!league) fail('/leagues', 'No league found for that invite code.');
-  const joined = await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing returning 1', [league.id, user.id]);
+  const joined = await q('insert into league_members (league_id, user_id, joined_on) values ($1, $2, $3) on conflict do nothing returning 1', [league.id, user.id, await userToday()]);
   await q('delete from league_invites where league_id = $1 and user_id = $2', [league.id, user.id]);
   if (joined.length) await notify([league.owner_id], { kind: 'join', link: `/leagues/${league.id}`, body: `${user.display_name} joined ${league.name}` });
   redirect(`/leagues/${league.id}`);
@@ -466,7 +466,7 @@ export async function respondInvite(fd) {
   const id = Number(fd.get('league'));
   const invite = await q1('delete from league_invites where league_id = $1 and user_id = $2 returning league_id', [id, user.id]);
   if (invite && str(fd, 'answer') === 'accept') {
-    await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing', [id, user.id]);
+    await q('insert into league_members (league_id, user_id, joined_on) values ($1, $2, $3) on conflict do nothing', [id, user.id, await userToday()]);
     const league = await q1('select name, owner_id from leagues where id = $1', [id]);
     if (league) await notify([league.owner_id], { kind: 'join', link: `/leagues/${id}`, body: `${user.display_name} joined ${league.name}` });
     redirect(`/leagues/${id}`);
@@ -698,7 +698,7 @@ export async function joinPublic(fd) {
   const user = await requireUser();
   const league = await q1('select id, name, owner_id from leagues where id = $1 and is_public', [Number(fd.get('league'))]);
   if (!league) fail('/leagues', 'That league is not open to join.');
-  const joined = await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing returning 1', [league.id, user.id]);
+  const joined = await q('insert into league_members (league_id, user_id, joined_on) values ($1, $2, $3) on conflict do nothing returning 1', [league.id, user.id, await userToday()]);
   if (joined.length) await notify([league.owner_id], { kind: 'join', link: `/leagues/${league.id}`, body: `${user.display_name} joined ${league.name}` });
   redirect(`/leagues/${league.id}`);
 }

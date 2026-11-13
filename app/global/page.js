@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { globalTableOn } from '@/lib/features';
 import { q } from '@/lib/db';
 import { requireUser, userToday } from '@/lib/auth';
 import { GAMES, builtin, formatScore } from '@/lib/games';
@@ -8,6 +10,7 @@ import { Medal } from '../ui';
 // Everyone's results for one game, limited to players who made their stats public.
 export default async function Global({ searchParams }) {
   const sp = await searchParams;
+  if (!globalTableOn()) notFound(); // switched off for now; see lib/features.js
   const user = await requireUser('/global');
   const today = await userToday();
   const game = builtin(sp.game) ?? GAMES[0];

@@ -56,3 +56,9 @@ adding these environment variables in the Vercel project (Settings → Environme
 - `APP_URL` (optional): the site's address for links in emails; defaults to the Vercel production domain
 
 Until the first two are set, the "Forgot your password?" page offers recovery codes only.
+
+## Switched-off features
+
+- **Global table** (`/global`): every game's best results today and all time, from players with public
+  stats. Built and tested, but hidden while the player base is small. To turn it on, set
+  `ENABLE_GLOBAL_TABLE=on` in Vercel and redeploy. See `lib/features.js`.

@@ -3,6 +3,7 @@ import { q } from '@/lib/db';
 import { requireUser, gamesByIds } from '@/lib/auth';
 import { GAMES } from '@/lib/games';
 import { createLeague, joinLeague, joinPublic } from '../actions';
+import { globalTableOn } from '@/lib/features';
 import { Flash } from '../ui';
 import Submit from '../Submit';
 
@@ -50,11 +51,11 @@ export default async function Leagues({ searchParams }) {
         ))}
       </div>
 
-      <Link href="/global" className="card list-row">
+      {globalTableOn() && <Link href="/global" className="card list-row">
         <span className="emoji">🌍</span>
         <span className="grow"><b>Global table</b><small className="muted">Today&apos;s best and all-time bests for every game</small></span>
         <span>→</span>
-      </Link>
+      </Link>}
 
       {(open.length > 0 || find) && (
         <>

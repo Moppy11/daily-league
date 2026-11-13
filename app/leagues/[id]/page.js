@@ -171,7 +171,7 @@ export default async function LeaguePage({ params, searchParams }) {
           <p className="muted small">
             {view === 'week' ? `Week of ${weekLabel(thisWeek)}. Resets every Monday; top on Sunday night wins the week. ` : ''}
             Each game, each day: 1st {POINTS[0]} pts, then {POINTS.slice(1).join(', ')}, and 1 for playing. Today&apos;s games reset at midnight.
-            {' '}Only results posted after joining count here. {rules.join(' ')}
+            {' '}Results count from the day you joined. {rules.join(' ')}
           </p>
         </div>
 
@@ -359,7 +359,7 @@ export default async function LeaguePage({ params, searchParams }) {
           <input type="hidden" name="league" value={league.id} />
           <p className="muted">
             {isOwner && members.length === 1 ? 'You are the only member, so this closes the league.'
-              : isOwner ? 'You are the admin, so the league passes to the next longest-standing member.' : 'You can rejoin later with the invite link, but only results posted after rejoining will count.'}
+              : isOwner ? 'You are the admin, so the league passes to the next longest-standing member.' : 'You can rejoin later with the invite link; results count again from the day you rejoin.'}
           </p>
           <Submit className="btn danger">Leave {league.name}</Submit>
         </form>
