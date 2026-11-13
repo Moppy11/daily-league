@@ -7,7 +7,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { emailEnabled, validEmail, sendEmail, siteUrl, escapeHtml } from '@/lib/email';
 import { q, q1 } from '@/lib/db';
 import { createSession, destroySession, requireUser, userToday, gamesByIds, canSee } from '@/lib/auth';
-import { parseManual, expectedPuzzle, puzzleDate } from '@/lib/games';
+import { parseManual, expectedPuzzle, puzzleDate, detectGame } from '@/lib/games';
 import { addDays, todayIn, prettyDate } from '@/lib/dates';
 import { notify } from '@/lib/notify';
 import { sendPush } from '@/lib/push';
@@ -23,6 +23,18 @@ function ok(path, msg) {
 }
 // Only allow redirects back into this site.
 const safeNext = (p) => (typeof p === 'string' && p.startsWith('/') && !p.startsWith('//') ? p : '/');
+
+/* ---------- landing page demo ---------- */
+
+// Reads a pasted result for the front page's "try it" box. Nothing is saved and no account is needed.
+export async function previewResult(text) {
+  const found = detectGame(String(text ?? '').slice(0, 2000));
+  if (!found) return { ok: false };
+  const { game, puzzleNo, score } = found;
+  const expected = expectedPuzzle(game, await userToday());
+  const isToday = puzzleNo === null || expected === null ? null : Math.abs(puzzleNo - expected) <= 1;
+  return { ok: true, name: game.name, emoji: game.emoji, score: formatScore(game, score), higherBetter: game.higherBetter, isToday };
+}
 
 /* ---------- accounts ---------- */
 

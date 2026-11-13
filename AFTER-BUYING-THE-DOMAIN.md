@@ -42,6 +42,12 @@ Already set: `DATABASE_URL`, `ADMIN_USERNAMES=moppy11`.
 - Log out, press "Forgot your password?", and confirm the email arrives (check spam the first time).
 
 ## 7. Nice to have afterwards
+- One-tap sign-in (suggested in an outside review): "Sign in with Google" needs a free Google Cloud
+  OAuth app with the domain as its redirect address; "magic link" sign-in by email needs Resend set up
+  (steps 3–6). Either cuts sign-up friction for friends opening an invite on their phone. If the app ever
+  goes to the App Store with Google sign-in, Apple also requires "Sign in with Apple".
+- Link previews already work and switch to the new address automatically; after the move, re-share an
+  invite link in a chat to check the preview.
 - Privacy page: add `CONTACT_EMAIL` so people can reach you.
 - If you later go for the App Store: Apple needs a support URL and privacy policy URL on the
   domain (`/privacy` already exists).

@@ -4,12 +4,18 @@ import { getUser, userToday, userHour } from '@/lib/auth';
 import { unreadCount, remainingToday } from '@/lib/notify';
 import LogoutButton from './LogoutButton';
 import TzSync from './TzSync';
+import { siteOrigin } from '@/lib/site';
 import Nav from './Nav';
 import AlertWatcher from './AlertWatcher';
 
+const DESCRIPTION = 'Post your Wordle, Krillion, Connections and other daily game results, earn points against friends every day, and win the week.';
+
 export const metadata = {
-  title: 'Daily League',
-  description: 'Compete with friends across your daily games.',
+  metadataBase: new URL(siteOrigin()),
+  title: { default: 'Daily League', template: '%s · Daily League' },
+  description: DESCRIPTION,
+  openGraph: { title: 'Daily League', description: DESCRIPTION, siteName: 'Daily League', type: 'website' },
+  twitter: { card: 'summary_large_image', title: 'Daily League', description: DESCRIPTION },
   appleWebApp: { capable: true, title: 'Daily League', statusBarStyle: 'default' },
 };
 export const viewport = { width: 'device-width', initialScale: 1, themeColor: '#2f6bff' };
@@ -34,6 +40,10 @@ export default async function RootLayout({ children }) {
           {user && <LogoutButton />}
         </header>
         <main>{children}</main>
+        <footer className={'foot' + (user ? ' with-nav' : '')}>
+          <span>Daily League</span> · <Link href="/privacy">Privacy</Link> · <Link href="/#games">Supported games</Link>
+          {!user && <> · <Link href="/signup">Sign up</Link></>}
+        </footer>
       </body>
     </html>
   );

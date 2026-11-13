@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import Landing from './Landing';
+import { expectedPuzzle, builtin } from '@/lib/games';
 import { q } from '@/lib/db';
 import { getUser, userToday, gamesByIds } from '@/lib/auth';
 import { formatScore } from '@/lib/games';
@@ -11,32 +13,13 @@ import ProofUpload from './ProofUpload';
 import PasteBox from './PasteBox';
 import Submit from './Submit';
 
-function Landing() {
-  return (
-    <section className="hero">
-      <h1>One league for all your daily games</h1>
-      <p>
-        Post your Krillion, Wordle, Connections and other daily results, earn points against your
-        friends every day, and win the week.
-      </p>
-      <div className="row center">
-        <Link className="btn primary" href="/signup">Create an account</Link>
-        <Link className="btn" href="/login">Log in</Link>
-      </div>
-      <ul className="features">
-        <li><b>Paste to score.</b> Tap Share in the game and paste the result. It&apos;s checked against today&apos;s puzzle, then locked.</li>
-        <li><b>Leagues.</b> Invite friends with a link. An overall table plus one for each game.</li>
-        <li><b>Weekly races.</b> The table resets every Monday, with weekly winners, all-time standings and records.</li>
-        <li><b>Your stats.</b> Averages, bests, streaks and history for every game you play.</li>
-      </ul>
-    </section>
-  );
-}
-
 export default async function Home({ searchParams }) {
   const sp = await searchParams;
   const user = await getUser();
-  if (!user) return <Landing />;
+  if (!user) {
+    const kn = expectedPuzzle(builtin('krillion'), await userToday());
+    return <Landing example={`Krillion #${kn} 🦐\n265\n\n🦑🏮🐟⬛🦑⬛🐟`} />;
+  }
 
   const today = await userToday();
   const [mine, leagueRows, invites, requests, dates] = await Promise.all([
