@@ -6,7 +6,7 @@ import { loadLeague, ensureRecap } from '@/lib/league';
 import { weekStart } from '@/lib/dates';
 import { GAMES } from '@/lib/games';
 import { ago } from '@/lib/dates';
-import { postMessage, requestGame, decideRequest } from '../../../actions';
+import { postMessage, requestGame, decideRequest, reportMessage, deleteMessage } from '../../../actions';
 import { Flash } from '../../../ui';
 import Submit from '../../../Submit';
 import AutoRefresh from '../../../AutoRefresh';
@@ -30,9 +30,14 @@ export default async function Chat({ params, searchParams }) {
   const messages = await q(
     `select m.id, m.kind, m.body, m.game_id, m.status, m.created_at, m.user_id, u.display_name, u.username
      from league_messages m join users u on u.id = m.user_id
-     where m.league_id = $1 order by m.id desc limit 100`,
-    [league.id]
+     where m.league_id = $1 and m.user_id not in (select blocked_id from blocks where user_id = $2)
+     order by m.id desc limit 100`,
+    [league.id, user.id]
   );
+  const reportRows = messages.length
+    ? await q('select message_id, count(*) as n, bool_or(user_id = $2) as mine from message_reports where message_id = any($1) group by message_id', [messages.map((m) => m.id), user.id])
+    : [];
+  const reports = Object.fromEntries(reportRows.map((r) => [r.message_id, r]));
   if (messages.length) {
     await q('update league_members set chat_seen_id = $1 where league_id = $2 and user_id = $3', [messages[0].id, league.id, user.id]);
     await q(`update notifications set read_at = now() where user_id = $1 and kind = 'chat' and link = $2 and read_at is null`, [user.id, `/leagues/${league.id}/chat`]);
@@ -109,6 +114,12 @@ export default async function Chat({ params, searchParams }) {
                     {m.user_id === league.owner_id && ' · admin'} · {ago(m.created_at)}
                   </small>
                   <p>{m.body}</p>
+                  <form className="msg-tools">
+                    <input type="hidden" name="message" value={m.id} />
+                    {isAdmin && reports[m.id] && <small className="queried">⚑ Reported by {reports[m.id].n}</small>}
+                    {!mine && !reports[m.id]?.mine && <button className="link" formAction={reportMessage}>Report</button>}
+                    {(mine || isAdmin) && <button className="link" formAction={deleteMessage}>Delete</button>}
+                  </form>
                 </div>
               );
             })}

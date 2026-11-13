@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { q } from '@/lib/db';
 import { requireUser, gamesByIds } from '@/lib/auth';
 import { GAMES } from '@/lib/games';
-import { createLeague, joinLeague } from '../actions';
+import { createLeague, joinLeague, joinPublic } from '../actions';
 import { Flash } from '../ui';
 import Submit from '../Submit';
 
@@ -14,6 +14,14 @@ export default async function Leagues({ searchParams }) {
      from leagues l join league_members m on m.league_id = l.id where m.user_id = $1 order by l.name`,
     [user.id]
   );
+  const open = await q(
+    `select l.id, l.name, (select count(*) from league_members where league_id = l.id) as players,
+       (select string_agg(game_id, ',') from league_games where league_id = l.id) as games
+     from leagues l where l.is_public and l.id not in (select league_id from league_members where user_id = $1)
+     order by players desc, l.id desc limit 12`,
+    [user.id]
+  );
+  const openGames = await gamesByIds(open.flatMap((l) => (l.games ?? '').split(',')));
   const mineIds = (await q('select game_id from user_games where user_id = $1', [user.id])).map((r) => r.game_id);
   const mine = new Set(mineIds);
   const customs = Object.values(await gamesByIds(mineIds)).filter((g) => g.custom);
@@ -39,6 +47,30 @@ export default async function Leagues({ searchParams }) {
           </Link>
         ))}
       </div>
+
+      <Link href="/global" className="card list-row">
+        <span className="emoji">🌍</span>
+        <span className="grow"><b>Global table</b><small className="muted">Today&apos;s best and all-time bests for every game</small></span>
+        <span>→</span>
+      </Link>
+
+      {open.length > 0 && (
+        <>
+          <h2>Public leagues</h2>
+          <div className="list">
+            {open.map((l) => (
+              <form action={joinPublic} className="card list-row" key={l.id}>
+                <input type="hidden" name="league" value={l.id} />
+                <span className="grow">
+                  <b>{l.name}</b>
+                  <small className="muted">{l.players} player{l.players === 1 ? '' : 's'} · {(l.games ?? '').split(',').map((g) => openGames[g]?.emoji).join(' ')}</small>
+                </span>
+                <Submit className="btn primary small">Join</Submit>
+              </form>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2>Join a league</h2>
       <form action={joinLeague} className="card row">

@@ -486,6 +486,111 @@ export async function nudge(fd) {
   ok(path, targets.length ? `Reminder sent to ${targets.length} player${targets.length === 1 ? '' : 's'}.` : 'Everyone still to play has already been reminded today.');
 }
 
+/* ---------- chat moderation ---------- */
+
+export async function reportMessage(fd) {
+  const user = await requireUser();
+  const msg = await q1(
+    `select m.id, m.league_id, m.user_id, l.owner_id, l.name from league_messages m join leagues l on l.id = m.league_id
+     join league_members lm on lm.league_id = m.league_id and lm.user_id = $2 where m.id = $1 and m.kind = 'chat'`,
+    [Number(fd.get('message')), user.id]
+  );
+  if (!msg) fail('/leagues', 'That message is no longer there.');
+  const path = `/leagues/${msg.league_id}/chat`;
+  if (msg.user_id === user.id) fail(path, 'You can delete your own message instead.');
+  const added = await q('insert into message_reports (message_id, user_id) values ($1, $2) on conflict do nothing returning 1', [msg.id, user.id]);
+  if (added.length) await notify([msg.owner_id], { kind: 'flag', link: path, body: `${user.display_name} reported a message in ${msg.name}`, once: true });
+  ok(path, 'Reported to the admin.');
+}
+
+// The author or the league admin can delete a chat message.
+export async function deleteMessage(fd) {
+  const user = await requireUser();
+  const msg = await q1(
+    `select m.id, m.league_id, m.user_id, l.owner_id from league_messages m join leagues l on l.id = m.league_id where m.id = $1 and m.kind = 'chat'`,
+    [Number(fd.get('message'))]
+  );
+  if (!msg) fail('/leagues', 'That message is no longer there.');
+  const path = `/leagues/${msg.league_id}/chat`;
+  if (msg.user_id !== user.id && msg.owner_id !== user.id) fail(path, 'Only the author or the admin can delete a message.');
+  await q('delete from league_messages where id = $1', [msg.id]);
+  ok(path, 'Message deleted.');
+}
+
+export async function blockUser(fd) {
+  const user = await requireUser();
+  const other = await q1('select id, username, display_name from users where id = $1', [Number(fd.get('user'))]);
+  if (!other || other.id === user.id) fail('/friends', 'Player not found.');
+  await q('insert into blocks (user_id, blocked_id) values ($1, $2) on conflict do nothing', [user.id, other.id]);
+  await q('delete from friendships where (user_id = $1 and friend_id = $2) or (user_id = $2 and friend_id = $1)', [user.id, other.id]);
+  await q(`update duels set status = 'declined' where status in ('pending', 'accepted') and ((challenger_id = $1 and opponent_id = $2) or (challenger_id = $2 and opponent_id = $1))`, [user.id, other.id]);
+  ok(`/u/${other.username}`, `${other.display_name} is blocked.`);
+}
+
+export async function unblockUser(fd) {
+  const user = await requireUser();
+  await q('delete from blocks where user_id = $1 and blocked_id = $2', [user.id, Number(fd.get('user'))]);
+  ok(fd.get('back') ? safeNext(str(fd, 'back')) : '/settings', 'Unblocked.');
+}
+
+// True when `targetId` has blocked `senderId`.
+async function blockedBy(targetId, senderId) {
+  return !!(await q1('select 1 from blocks where user_id = $1 and blocked_id = $2', [targetId, senderId]));
+}
+
+/* ---------- duels ---------- */
+
+export async function createDuel(fd) {
+  const user = await requireUser();
+  const other = await q1('select id, username, display_name from users where id = $1', [Number(fd.get('opponent'))]);
+  const gameId = str(fd, 'game');
+  const game = (await gamesByIds([gameId]))[gameId];
+  if (!other || other.id === user.id) fail('/duels', 'Pick a friend to challenge.');
+  const back = `/u/${other.username}`;
+  const friends = await q1(
+    `select 1 from friendships where status = 'accepted' and ((user_id = $1 and friend_id = $2) or (user_id = $2 and friend_id = $1))`,
+    [user.id, other.id]
+  );
+  if (!friends || (await blockedBy(other.id, user.id))) fail(back, 'You can only challenge friends.');
+  if (!game) fail(back, 'Pick a game for the duel.');
+  const today = await userToday();
+  const open = await q1(
+    `select 1 from duels where game_id = $3 and status in ('pending', 'accepted') and week_start > $4::date - 7
+     and ((challenger_id = $1 and opponent_id = $2) or (challenger_id = $2 and opponent_id = $1))`,
+    [user.id, other.id, gameId, today]
+  );
+  if (open) fail(back, `You already have a ${game.name} duel with ${other.display_name}.`);
+  await q('insert into duels (challenger_id, opponent_id, game_id, week_start) values ($1, $2, $3, $4)', [user.id, other.id, gameId, today]);
+  await notify([other.id], { kind: 'duel', link: '/duels', body: `${user.display_name} challenged you to a week of ${game.name}` });
+  ok('/duels', `Challenge sent to ${other.display_name}.`);
+}
+
+export async function acceptDuel(fd) { return answerDuel(fd, 'accepted'); }
+export async function declineDuel(fd) { return answerDuel(fd, 'declined'); }
+
+async function answerDuel(fd, status) {
+  const user = await requireUser();
+  const duel = await q1(
+    `update duels set status = $3 where id = $1 and opponent_id = $2 and status = 'pending' returning challenger_id, game_id`,
+    [Number(fd.get('duel')), user.id, status]
+  );
+  if (!duel) fail('/duels', 'That challenge is no longer open.');
+  const game = (await gamesByIds([duel.game_id]))[duel.game_id];
+  await notify([duel.challenger_id], { kind: 'duel', link: '/duels', body: `${user.display_name} ${status} your ${game?.name ?? ''} duel` });
+  ok('/duels', status === 'accepted' ? 'Duel on.' : 'Challenge declined.');
+}
+
+/* ---------- public leagues ---------- */
+
+export async function joinPublic(fd) {
+  const user = await requireUser();
+  const league = await q1('select id, name, owner_id from leagues where id = $1 and is_public', [Number(fd.get('league'))]);
+  if (!league) fail('/leagues', 'That league is not open to join.');
+  const joined = await q('insert into league_members (league_id, user_id) values ($1, $2) on conflict do nothing returning 1', [league.id, user.id]);
+  if (joined.length) await notify([league.owner_id], { kind: 'join', link: `/leagues/${league.id}`, body: `${user.display_name} joined ${league.name}` });
+  redirect(`/leagues/${league.id}`);
+}
+
 /* ---------- friends ---------- */
 
 export async function addFriend(fd) {
@@ -495,6 +600,8 @@ export async function addFriend(fd) {
   const other = await q1('select id, display_name from users where username = $1', [username]);
   if (!other) fail(back, `No player called @${username}.`);
   if (other.id === user.id) fail(back, "That's you.");
+  if (await blockedBy(other.id, user.id)) fail(back, "That player isn't accepting friend requests.");
+  await q('delete from blocks where user_id = $1 and blocked_id = $2', [user.id, other.id]); // adding someone unblocks them
   const existing = await q1(
     'select user_id, status from friendships where (user_id = $1 and friend_id = $2) or (user_id = $2 and friend_id = $1)',
     [user.id, other.id]

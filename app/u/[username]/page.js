@@ -6,7 +6,9 @@ import { formatScore, formatAvg } from '@/lib/games';
 import { addDays, prettyDate, weekStart } from '@/lib/dates';
 import { loadLeague } from '@/lib/league';
 import { weeklyWinners } from '@/lib/records';
-import { setVisibility } from '../../actions';
+import { setVisibility, createDuel, blockUser, unblockUser } from '../../actions';
+import { earnedBadges } from '@/lib/badges';
+import { GAMES } from '@/lib/games';
 import { Flash } from '../../ui';
 import CopyLink from '../../CopyLink';
 import FriendButton from '../../FriendButton';
@@ -50,6 +52,7 @@ export default async function Profile({ params, searchParams }) {
   const self = viewer?.id === person.id;
   const rel = viewer ? await relationship(viewer.id, person.id) : 'none';
   const back = `/u/${person.username}`;
+  const blocked = viewer && !self ? !!(await q1('select 1 from blocks where user_id = $1 and blocked_id = $2', [viewer.id, person.id])) : false;
   const head = (streak) => (
     <>
       <div className="headline">
@@ -63,7 +66,27 @@ export default async function Profile({ params, searchParams }) {
       <div className="row profile-actions">
         <FriendButton viewer={viewer} person={person} rel={rel} back={back} />
         <CopyLink path={back} label={self ? 'Share my profile' : 'Share profile'} title={`${person.display_name} on Daily League`} />
+        {viewer && !self && (
+          <form action={blocked ? unblockUser : blockUser}>
+            <input type="hidden" name="user" value={person.id} />
+            <input type="hidden" name="back" value={back} />
+            <button className="link">{blocked ? 'Unblock' : 'Block'}</button>
+          </form>
+        )}
       </div>
+      {rel === 'friends' && (
+        <details className="card duel-form">
+          <summary>⚔️ Challenge {person.display_name} to a duel</summary>
+          <form action={createDuel} className="row">
+            <input type="hidden" name="opponent" value={person.id} />
+            <select name="game" className="grow" aria-label="Game for the duel">
+              {GAMES.map((g) => <option key={g.id} value={g.id}>{g.emoji} {g.name}</option>)}
+            </select>
+            <Submit>Send challenge</Submit>
+          </form>
+          <small className="muted">Seven days from today. Each day you both post, the better result takes the day.</small>
+        </details>
+      )}
     </>
   );
 
@@ -122,13 +145,17 @@ export default async function Profile({ params, searchParams }) {
   // Weeks won in each league this player is in.
   const leagueIds = await q('select league_id from league_members where user_id = $1', [person.id]);
   const weekWins = [];
+  const myLeagues = [];
   for (const { league_id } of leagueIds) {
     const l = await loadLeague(league_id);
     if (!l) continue;
+    myLeagues.push(l);
     const won = weeklyWinners(l.scores, l.games, l.members, weekStart(today), l.opts.week).filter((w) => w.winners.some((u) => u.id === person.id)).length;
     if (won) weekWins.push({ name: l.league.name, won });
   }
   const totalWeekWins = weekWins.reduce((a, w) => a + w.won, 0);
+  const badges = earnedBadges(person.id, scores, myLeagues, totalWeekWins).sort((x, y) => y.earned - x.earned); // earned first
+  const got = badges.filter((b) => b.earned);
 
   return (
     <>
@@ -156,6 +183,15 @@ export default async function Profile({ params, searchParams }) {
       {weekWins.length > 0 && (
         <p className="muted small">Weeks won: {weekWins.map((w) => `${w.name} ${w.won}`).join(' · ')}</p>
       )}
+      <h2>Badges <small className="muted">{got.length} of {badges.length}</small></h2>
+      <div className="badges">
+        {badges.map((b) => (
+          <span key={b.id} className={'badge-chip' + (b.earned ? '' : ' locked')} title={b.desc}>
+            <span aria-hidden="true">{b.earned ? b.emoji : '🔒'}</span> {b.name}
+            <small>{b.desc}</small>
+          </span>
+        ))}
+      </div>
       <div className="cols">
       <div>
       {h2h && (

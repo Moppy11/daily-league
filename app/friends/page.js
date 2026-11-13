@@ -62,6 +62,12 @@ export default async function Friends({ searchParams }) {
         <CopyLink path={`/u/${user.username}`} label="Share my profile" title={`${user.display_name} on Daily League`} className="btn small" />
       </div>
 
+      <Link href="/duels" className="card list-row">
+        <span className="emoji">⚔️</span>
+        <span className="grow"><b>Duels</b><small className="muted">Week-long one-on-one challenges with friends</small></span>
+        <span>→</span>
+      </Link>
+
       {incoming.length > 0 && <h2>Requests</h2>}
       <div className="list">
         {incoming.map((r) => (
