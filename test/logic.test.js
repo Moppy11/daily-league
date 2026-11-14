@@ -240,3 +240,8 @@ test('Chainle share text', () => {
   assert.equal(detectGame('Chainle #87 · 2,858 🔗'), null);   // no squares, typed by hand
   assert.equal(builtin('queens'), null);
 });
+
+test('Chainle puzzle numbers follow the date', () => {
+  assert.equal(expectedPuzzle(builtin('chainle'), '2026-11-14'), 87);
+  assert.equal(expectedPuzzle(builtin('chainle'), '2026-11-20'), 93);
+});
