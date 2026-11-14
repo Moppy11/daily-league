@@ -297,6 +297,16 @@ async function membership(leagueId, userId) {
   );
 }
 
+// Close the weekly recap for this player (it stays available from the league page).
+export async function dismissRecap(fd) {
+  const user = await requireUser();
+  const league = Number(fd.get('league')), week = String(fd.get('week') ?? '');
+  if (!league || !/^\d{4}-\d{2}-\d{2}$/.test(week)) return;
+  await q('insert into recap_seen (user_id, league_id, week) values ($1, $2, $3) on conflict do nothing', [user.id, league, week]);
+  revalidatePath('/');
+  revalidatePath(`/leagues/${league}`);
+}
+
 export async function createLeague(fd) {
   const user = await requireUser();
   const name = str(fd, 'name');

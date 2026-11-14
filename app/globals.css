@@ -378,3 +378,22 @@ a.play-chip:hover { border-color: var(--accent); }
 .foot a { color: var(--muted); text-decoration: underline; }
 @media (max-width: 719px) { .foot.with-nav { padding-bottom: 96px; } main { padding-bottom: 24px; } }
 @media (min-width: 960px) { .foot { max-width: 1160px; } }
+
+/* Weekly recap card */
+.recap { border: 2px solid var(--accent); }
+.recap h2 { margin: 2px 0 0; }
+.recap h3 { margin: 18px 0 8px; font-size: 1rem; }
+.recap-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.recap-head p { margin: 0; }
+.recap-winner { display: flex; gap: 14px; align-items: center; margin: 14px 0 6px; padding: 12px 14px; border-radius: 12px; background: var(--soft); font-size: 1.1rem; }
+.recap-winner .trophy { font-size: 2rem; }
+.recap-table td, .recap-table th { text-align: center; }
+.recap-table .left { text-align: left; }
+.recap-games { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.recap-game { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--field); }
+.recap-game dl { margin: 6px 0 0; }
+.recap-game dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: 6px; }
+.recap-game dd { margin: 0; }
+.recap-fold { margin-top: 10px; }
+.recap-fold summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.recap-fold .recap { margin-top: 8px; }

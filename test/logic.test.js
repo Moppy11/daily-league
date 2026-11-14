@@ -245,3 +245,24 @@ test('Chainle puzzle numbers follow the date', () => {
   assert.equal(expectedPuzzle(builtin('chainle'), '2026-11-14'), 87);
   assert.equal(expectedPuzzle(builtin('chainle'), '2026-11-20'), 93);
 });
+
+test('weekly recap: winner, final table, most wins, best and worst per game', async () => {
+  const { weekRecap } = await import('../lib/records.js');
+  const members = [{ id: 1, display_name: 'A' }, { id: 2, display_name: 'B' }];
+  const games = { krillion: builtin('krillion'), wordle: builtin('wordle') };
+  const s = (user_id, game_id, play_date, score) => ({ user_id, game_id, play_date, score });
+  const scores = [
+    s(1, 'krillion', '2026-11-09', 500), s(2, 'krillion', '2026-11-09', 300),
+    s(1, 'krillion', '2026-11-10', 200), s(2, 'krillion', '2026-11-10', 450),
+    s(1, 'wordle', '2026-11-10', 3), s(2, 'wordle', '2026-11-10', 7),
+    s(1, 'krillion', '2026-11-16', 700),   // next week: not in the recap
+  ];
+  const r = weekRecap(scores, games, members, '2026-11-09', {});
+  assert.equal(r.winners[0].id, 1);
+  assert.deepEqual(r.table.map((x) => x.total), [27, 24]);
+  const k = r.perGame.find((g) => g.game.id === 'krillion');
+  assert.equal(k.best.value, 500); assert.equal(k.worst.value, 200); assert.equal(k.wins.value, 1);
+  const w = r.perGame.find((g) => g.game.id === 'wordle');
+  assert.equal(w.best.value, 3); assert.equal(w.worst.value, 7); assert.equal(w.best.users[0].id, 1);
+  assert.equal(weekRecap(scores, games, members, '2026-11-02', {}), null);
+});

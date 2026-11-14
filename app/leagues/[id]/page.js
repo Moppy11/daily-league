@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { q } from '@/lib/db';
+import { q, q1 } from '@/lib/db';
 import { requireUser, userToday, gamesByIds } from '@/lib/auth';
 import { GAMES, formatScore, formatAvg } from '@/lib/games';
 import { addDays, isDate, weekStart, weekLabel, prettyDate } from '@/lib/dates';
-import { weeklyWinners, weeklyWinCounts, leagueRecords } from '@/lib/records';
+import { weeklyWinners, weeklyWinCounts, leagueRecords, weekRecap, bestWorstLabels } from '@/lib/records';
+import WeeklyRecap from '@/app/WeeklyRecap';
 import { loadLeague, ensureRecap } from '@/lib/league';
 import { standings, withPositions, rankDay, POINTS } from '@/lib/points';
 import { inviteFriend, leaveLeague, setLeagueGames, nudge, manageMember, queryScore, keepScore, removeScore } from '../../actions';
@@ -51,6 +52,11 @@ export default async function LeaguePage({ params, searchParams }) {
   const champions = weeklyWinners(scores, games, members, thisWeek, opts.week);
   const weekWins = weeklyWinCounts(champions);
   const records = leagueRecords(scores, games, members, thisWeek, opts);
+  // Last week's recap: open at the top until this player closes it, then folded away under the table.
+  const lastWeek = addDays(thisWeek, -7);
+  const recap = weekRecap(scores, games, members, lastWeek, opts);
+  const recapOpen = recap && (members.find((m) => m.id === user.id)?.joined_on ?? today) <= addDays(lastWeek, 6)
+    && !(await q1('select 1 from recap_seen where user_id = $1 and league_id = $2 and week = $3', [user.id, league.id, lastWeek]));
   const names = (r) => (r.users.length > 3 ? `${r.users.length} players` : r.users.map((u) => u.display_name).join(' & '));
 
   // ---- Results for the chosen day, game by game ----
@@ -123,6 +129,7 @@ export default async function LeaguePage({ params, searchParams }) {
         <Link href="/share" className="btn small primary">Post a result</Link>
       </nav>
       <Flash sp={sp} />
+      {recapOpen && <WeeklyRecap recap={recap} league={league} me={user.id} dismiss />}
 
       <div className="cols">
         <div>
@@ -173,6 +180,12 @@ export default async function LeaguePage({ params, searchParams }) {
             Each game, each day: 1st {POINTS[0]} pts, then {POINTS.slice(1).join(', ')}, and 1 for playing. Today&apos;s games reset at midnight.
             {' '}Results count from the day you joined. {rules.join(' ')}
           </p>
+          {recap && !recapOpen && (
+            <details className="recap-fold">
+              <summary>📰 Last week&apos;s recap</summary>
+              <WeeklyRecap recap={recap} league={league} me={user.id} />
+            </details>
+          )}
         </div>
 
         <div>
@@ -279,7 +292,8 @@ export default async function LeaguePage({ params, searchParams }) {
               <section className="card" key={r.game.id}>
                 <h3>{r.game.emoji} {r.game.name}</h3>
                 <dl>
-                  {r.best && <><dt>{r.game.higherBetter ? 'Highest score' : 'Best score'}</dt><dd><b>{formatScore(r.game, r.best.value)}</b> {names(r.best)} <small className="muted">{prettyDate(r.best.extra)}</small></dd></>}
+                  {r.best && <><dt>{bestWorstLabels(r.game)[0]}</dt><dd><b>{formatScore(r.game, r.best.value)}</b> {names(r.best)} <small className="muted">{prettyDate(r.best.extra)}</small></dd></>}
+                  {r.worst && <><dt>{bestWorstLabels(r.game)[1]}</dt><dd><b>{formatScore(r.game, r.worst.value)}</b> {names(r.worst)} <small className="muted">{prettyDate(r.worst.extra)}</small></dd></>}
                   {r.average && <><dt>Best average</dt><dd><b>{formatAvg(r.game, r.average.value)}</b> {names(r.average)}</dd></>}
                   {r.wins && <><dt>Most days won</dt><dd><b>{r.wins.value}</b> {names(r.wins)}</dd></>}
                   {r.streak && <><dt>Longest streak</dt><dd><b>{r.streak.value} day{r.streak.value === 1 ? '' : 's'}</b> {names(r.streak)}</dd></>}

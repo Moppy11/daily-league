@@ -12,6 +12,8 @@ import { Flash, Medal } from './ui';
 import ProofUpload from './ProofUpload';
 import PasteBox from './PasteBox';
 import Submit from './Submit';
+import WeeklyRecap from './WeeklyRecap';
+import { weekRecap } from '@/lib/records';
 
 export default async function Home({ searchParams }) {
   const sp = await searchParams;
@@ -49,6 +51,14 @@ export default async function Home({ searchParams }) {
   for (let d = played.has(today) ? today : addDays(today, -1); played.has(d); d = addDays(d, -1)) streak++;
 
   const week = weekStart(today);
+  // Last week's recap, once per league, until the player closes it. Only for players who were in the
+  // league during that week.
+  const lastWeek = addDays(week, -7);
+  const seen = new Set((await q('select league_id from recap_seen where user_id = $1 and week = $2', [user.id, lastWeek])).map((r) => r.league_id));
+  const recaps = leagues
+    .filter((l) => !seen.has(l.league.id) && (l.members.find((m) => m.id === user.id)?.joined_on ?? today) <= addDays(lastWeek, 6))
+    .map((l) => ({ l, recap: weekRecap(l.scores, l.games, l.members, lastWeek, l.opts) }))
+    .filter((x) => x.recap);
   const remaining = games.filter((g) => !done[g.id]).length;
 
   return (
@@ -64,6 +74,7 @@ export default async function Home({ searchParams }) {
         <div className="streak" title="Days in a row with a result posted">🔥 {streak}<small>day streak</small></div>
       </div>
       <Flash sp={sp} />
+      {recaps.map(({ l, recap }) => <WeeklyRecap key={l.league.id} recap={recap} league={l.league} me={user.id} dismiss showLink />)}
 
       {!user.email && (
         <Link href="/settings" className="card notice">
