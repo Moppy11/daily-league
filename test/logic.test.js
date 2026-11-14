@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { builtin, formatScore, parseManual, expectedPuzzle, puzzleDate } from '../lib/games.js';
+import { builtin, formatScore, parseManual, expectedPuzzle, puzzleDate, detectGame } from '../lib/games.js';
 import { rankDay, standings, withPositions } from '../lib/points.js';
 
 const p = (id, t) => builtin(id).parse(t);
@@ -219,4 +219,18 @@ test('league options: weighting, daily cap, dropped day, weekly recap', async ()
   assert.match(recap, /🏆 Winner: P1 with 67 pts/);
   assert.match(recap, /Winning margin: 22 pts over P2/);
   assert.equal(weeklyRecap([], games, members, '2026-11-09', {}), null);
+});
+
+test('TimeGuessr: the dash share with five rounds, and the plain share', () => {
+  const full = 'TimeGuessr #1263 — 39,647/50,000\n1️⃣ 🏆7,230 · 📅 13y · 🌍 6.3km\n2️⃣ 🏆9,901 · 📅 1y · 🌍 5.5km\n3️⃣ 🏆8,624 · 📅 0y · 🌍 584.0km\n4️⃣ 🏆9,766 · 📅 2y · 🌍 10.8km\n5️⃣ 🏆4,126 · 📅 33y · 🌍 632.7km';
+  assert.equal(detectGame(full).score, 39647);
+  assert.equal(detectGame('TimeGuessr #1263 39,647/50,000').score, 39647);
+  assert.equal(detectGame(full.replace('39,647', '49,647')), null);   // rounds must add up
+});
+
+test('Pips: each level is its own board, lower time wins', () => {
+  const e = detectGame('Pips #46 Easy 🟢\n0:31');
+  assert.equal(e.game.id, 'pips-easy'); assert.equal(e.score, 31); assert.equal(e.game.higherBetter, false);
+  assert.equal(detectGame('Pips #46 Medium 🟡\n2:05 🍪').game.id, 'pips-medium');
+  assert.equal(detectGame('Pips #46 Hard 🔴\n12:40').score, 760);
 });
