@@ -105,8 +105,9 @@ export default async function Profile({ params, searchParams }) {
   }
 
   const today = await userToday();
-  const scores = await q('select game_id, play_date, score, manual from scores where user_id = $1 order by play_date', [person.id]);
-  const games = await gamesByIds(scores.map((s) => s.game_id));
+  const allScores = await q('select game_id, play_date, score, manual from scores where user_id = $1 order by play_date', [person.id]);
+  const games = await gamesByIds(allScores.map((s) => s.game_id));
+  const scores = allScores.filter((s) => games[s.game_id]);   // results for games no longer on the site stay hidden
   const all = streaks(scores.map((s) => s.play_date), today);
 
   const perGame = Object.values(games).map((g) => {

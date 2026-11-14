@@ -28,7 +28,6 @@ test('share text parsers', () => {
   assert.deepEqual(p('framed', 'Framed #900\n🎥 🟥 🟥 🟩 ⬛ ⬛ ⬛'), { puzzleNo: 900, score: 3 });
   assert.deepEqual(p('framed', 'Framed #900\n🎥 🟥 🟥 🟥 🟥 🟥 🟥'), { puzzleNo: 900, score: 7 });
   assert.deepEqual(p('timeguessr', 'TimeGuessr #800 42,105/50,000\n🌎🟩🟩🟩'), { puzzleNo: 800, score: 42105 });
-  assert.deepEqual(p('queens', 'Queens #300 | 1:23\nFirst 👑s: 🟪'), { puzzleNo: 300, score: 83 });
   assert.deepEqual(p('contexto', 'I played contexto.me #700 and got it in 45 guesses.'), { puzzleNo: 700, score: 45 });
   assert.deepEqual(p('worldle', '#Worldle #1500 (11.11.2026) 3/6 (100%)'), { puzzleNo: 1500, score: 3 });
 });
@@ -50,11 +49,11 @@ test('krillion: exact daily format, emoji must add up to the score', () => {
 
 test('formatting, manual entry, puzzle dates', () => {
   assert.equal(formatScore(builtin('wordle'), 7), 'X/6');
-  assert.equal(formatScore(builtin('queens'), 83), '1:23');
+  assert.equal(formatScore(builtin('pips-easy'), 83), '1:23');
   assert.equal(formatScore(builtin('krillion'), 540), '540/700');
   assert.equal(parseManual(builtin('wordle'), 'x'), 7);
   assert.equal(parseManual(builtin('wordle'), '9'), null);
-  assert.equal(parseManual(builtin('queens'), '1:23'), 83);
+  assert.equal(parseManual(builtin('pips-easy'), '1:23'), 83);
   assert.equal(parseManual(builtin('krillion'), '701'), null);
   assert.equal(expectedPuzzle(builtin('noillirk'), '2026-11-13'), 48);
   assert.equal(expectedPuzzle(builtin('wordle'), '2024-03-15'), 1000);
@@ -233,4 +232,11 @@ test('Pips: each level is its own board, lower time wins', () => {
   assert.equal(e.game.id, 'pips-easy'); assert.equal(e.score, 31); assert.equal(e.game.higherBetter, false);
   assert.equal(detectGame('Pips #46 Medium 🟡\n2:05 🍪').game.id, 'pips-medium');
   assert.equal(detectGame('Pips #46 Hard 🔴\n12:40').score, 760);
+});
+
+test('Chainle share text', () => {
+  const r = detectGame('Chainle #87 · 2,858 🔗\nBeat 44% of players\n🟧🟥🟩🟧🟨\nhttps://chainle.io');
+  assert.equal(r.game.id, 'chainle'); assert.equal(r.puzzleNo, 87); assert.equal(r.score, 2858);
+  assert.equal(detectGame('Chainle #87 · 2,858 🔗'), null);   // no squares, typed by hand
+  assert.equal(builtin('queens'), null);
 });
