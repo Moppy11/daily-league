@@ -137,6 +137,34 @@ export async function setEmail(fd) {
   ok('/settings', 'Email saved.');
 }
 
+// The name everyone sees in tables and chat. No password needed.
+export async function setDisplayName(fd) {
+  const user = await requireUser();
+  const name = str(fd, 'display_name').replace(/\s+/g, ' ');
+  if (name.length < 1 || name.length > 30) fail('/settings', 'Display name must be 1–30 characters.');
+  await q('update users set display_name = $1 where id = $2', [name, user.id]);
+  revalidatePath('/', 'layout');
+  ok('/settings', 'Display name saved.');
+}
+
+// The @username used to log in and in profile links. Needs the password, like changing email.
+export async function setUsername(fd) {
+  const user = await requireUser();
+  const username = str(fd, 'username').toLowerCase().replace(/^@/, '');
+  const row = await q1('select pass_hash from users where id = $1', [user.id]);
+  if (username === user.username) fail('/settings', 'That is already your username.');
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) fail('/settings', 'Username must be 3–20 letters, numbers or underscores.');
+  if (!(await bcrypt.compare(String(fd.get('password') ?? ''), row.pass_hash))) fail('/settings', 'Wrong password. Your username was not changed.');
+  // The site admin dashboard is tied to usernames, so admin names can't be taken or given up here.
+  const admins = (process.env.ADMIN_USERNAMES ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (admins.includes(user.username)) fail('/settings', 'Your username opens the admin dashboard. Change ADMIN_USERNAMES in Vercel first, then change it here.');
+  if (admins.includes(username)) fail('/settings', 'That username is taken.');
+  const res = await q('update users set username = $1 where id = $2 and not exists (select 1 from users where username = $1) returning id', [username, user.id]);
+  if (!res.length) fail('/settings', 'That username is taken.');
+  revalidatePath('/', 'layout');
+  ok('/settings', `Username changed to @${username}. Use it next time you log in.`);
+}
+
 // One-time code for resetting a forgotten password. Shown once; only its hash is kept.
 export async function createRecoveryCode() {
   const user = await requireUser();

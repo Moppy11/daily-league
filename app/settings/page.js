@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q, q1 } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { deleteAccount, unblockUser, setEmail } from '../actions';
+import { deleteAccount, unblockUser, setEmail, setDisplayName, setUsername } from '../actions';
 import { Flash } from '../ui';
 import Submit from '../Submit';
 import RecoveryCode from './RecoveryCode';
@@ -23,6 +23,27 @@ export default async function Settings({ searchParams }) {
       <p className="muted">Signed in as <b>@{user.username}</b></p>
       {isSiteAdmin(user) && <Link href="/admin" className="card list-row"><span className="emoji">📊</span><span className="grow"><b>Admin dashboard</b><small className="muted">Accounts, sign-ups and activity. Only you can see it.</small></span><span>→</span></Link>}
       <Flash sp={sp} />
+
+      <h2>Your name</h2>
+      <section className="card">
+        <form action={setDisplayName} className="stack">
+          <label>Display name
+            <input name="display_name" defaultValue={user.display_name} required maxLength={30} autoComplete="nickname" />
+          </label>
+          <p className="muted small">Shown in league tables, chat and on your profile. You can change it any time.</p>
+          <Submit className="btn">Save display name</Submit>
+        </form>
+      </section>
+      <section className="card">
+        <form action={setUsername} className="stack">
+          <label>Username
+            <input name="username" defaultValue={user.username} required minLength={3} maxLength={20} pattern="@?[A-Za-z0-9_]{3,20}" autoCapitalize="none" autoComplete="username" spellCheck={false} />
+          </label>
+          <p className="muted small">You log in with this, and it&apos;s in your profile link (/u/{user.username}). 3–20 letters, numbers or underscores. Old profile links stop working when you change it.</p>
+          <label>Your password<input name="password" type="password" required autoComplete="current-password" /></label>
+          <Submit className="btn">Change username</Submit>
+        </form>
+      </section>
 
       <h2>Email</h2>
       <section className="card">
