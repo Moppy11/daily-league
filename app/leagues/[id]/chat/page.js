@@ -43,7 +43,7 @@ export default async function Chat({ params, searchParams }) {
     await q(`update notifications set read_at = now() where user_id = $1 and kind = 'chat' and link = $2 and read_at is null`, [user.id, `/leagues/${league.id}/chat`]);
   }
 
-  const inLeague = new Set((await q('select game_id from league_games where league_id = $1', [league.id])).map((r) => r.game_id));
+  const inLeague = new Set((await q('select game_id from league_games g where league_id = $1 and (g.removed_on is null or g.removed_on > current_date)', [league.id])).map((r) => r.game_id));
   const mineIds = (await q('select game_id from user_games where user_id = $1', [user.id])).map((r) => r.game_id);
   const known = await gamesByIds([...mineIds, ...messages.map((m) => m.game_id).filter(Boolean)]);
   const requestable = [...GAMES, ...Object.values(known).filter((g) => g.custom && mineIds.includes(g.id))].filter((g) => !inLeague.has(g.id));

@@ -18,7 +18,7 @@ export default async function Leagues({ searchParams }) {
   );
   const open = await q(
     `select l.id, l.name, (select count(*) from league_members where league_id = l.id) as players,
-       (select string_agg(game_id, ',') from league_games where league_id = l.id) as games
+       (select string_agg(game_id, ',') from league_games g where league_id = l.id and (g.removed_on is null or g.removed_on > current_date)) as games
      from leagues l where l.is_public and l.id not in (select league_id from league_members where user_id = $1)
        and ($2 = '' or l.name ilike $3)
      order by players desc, l.id desc limit 12`,

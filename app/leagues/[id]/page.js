@@ -17,9 +17,9 @@ export default async function LeaguePage({ params, searchParams }) {
   const { id } = await params;
   const sp = await searchParams;
   const user = await requireUser(`/leagues/${id}`);
-  const data = /^\d+$/.test(id) ? await loadLeague(Number(id)) : null;
+  const data = /^\d+$/.test(id) ? await loadLeague(Number(id), await userToday()) : null;
   if (!data) notFound();
-  const { league, members, games, scores, weights, opts } = data;
+  const { league, members, games, liveGames, plan, scores, weights, opts } = data;
   if (!members.some((m) => m.id === user.id)) {
     return <section className="card narrow"><h1>{league.name}</h1><p>You&apos;re not a member of this league. Ask a member for the invite link.</p></section>;
   }
@@ -29,7 +29,12 @@ export default async function LeaguePage({ params, searchParams }) {
   await ensureRecap(data, thisWeek);
   const view = sp.view === 'all' ? 'all' : 'week';
   const date = isDate(sp.date) && sp.date <= today ? sp.date : today;
-  const gameList = Object.values(games).sort((a, b) => a.name.localeCompare(b.name));
+  const gameList = Object.values(liveGames).sort((a, b) => a.name.localeCompare(b.name));
+  // Changes the admin made today that take effect tomorrow.
+  const tomorrow = addDays(today, 1);
+  const startsTomorrow = Object.entries(plan).filter(([, p]) => p.added_on === tomorrow).map(([g]) => g);
+  const stopsTonight = Object.entries(plan).filter(([, p]) => p.removed_on === tomorrow).map(([g]) => g);
+  const planned = (gid) => plan[gid] && (!plan[gid].removed_on || plan[gid].removed_on > tomorrow);
   const byId = Object.fromEntries(members.map((m) => [m.id, m]));
   const base = `/leagues/${league.id}`;
   const href = (over) => {
@@ -129,6 +134,12 @@ export default async function LeaguePage({ params, searchParams }) {
         <Link href="/share" className="btn small primary">Post a result</Link>
       </nav>
       <Flash sp={sp} />
+      {(startsTomorrow.length > 0 || stopsTonight.length > 0) && (
+        <p className="card notice small">
+          {startsTomorrow.length > 0 && <span>🆕 From tomorrow, <b>{startsTomorrow.map((g) => games[g]?.name ?? g).join(', ')}</b> count{startsTomorrow.length === 1 ? 's' : ''}. </span>}
+          {stopsTonight.length > 0 && <span>👋 <b>{stopsTonight.map((g) => games[g]?.name ?? g).join(', ')}</b> stop{stopsTonight.length === 1 ? 's' : ''} counting after today. </span>}
+        </p>
+      )}
       {recapOpen && <WeeklyRecap recap={recap} league={league} me={user.id} dismiss />}
 
       <div className="cols">
@@ -288,7 +299,7 @@ export default async function LeaguePage({ params, searchParams }) {
                 {records.league.posted && <><dt>Most results posted</dt><dd><b>{records.league.posted.value}</b> {names(records.league.posted)}</dd></>}
               </dl>
             </section>
-            {records.perGame.map((r) => (
+            {records.perGame.filter((r) => planned(r.game.id)).map((r) => (
               <section className="card" key={r.game.id}>
                 <h3>{r.game.emoji} {r.game.name}</h3>
                 <dl>
@@ -328,11 +339,14 @@ export default async function LeaguePage({ params, searchParams }) {
             <label>League name<input name="name" defaultValue={league.name} required maxLength={40} /></label>
             <fieldset>
               <legend>Games that count, and how much</legend>
+              <p className="muted small">Changes start tomorrow, so anything already posted today still counts.</p>
               <div className="checks weights">
                 {gameOptions.map((g) => (
                   <span key={g.id} className="check">
                     <label className="check grow">
-                      <input type="checkbox" name="games" value={g.id} defaultChecked={!!games[g.id]} /> {g.emoji} {g.name}
+                      <input type="checkbox" name="games" value={g.id} defaultChecked={!!planned(g.id)} /> {g.emoji} {g.name}
+                      {startsTomorrow.includes(g.id) && <small className="muted"> · starts tomorrow</small>}
+                      {stopsTonight.includes(g.id) && <small className="muted"> · stops after today</small>}
                     </label>
                     <select name={`weight_${g.id}`} defaultValue={weights[g.id] ?? 1} aria-label={`${g.name} points weighting`}>
                       <option value="1">×1</option><option value="2">×2</option><option value="3">×3</option>

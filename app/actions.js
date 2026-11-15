@@ -10,6 +10,7 @@ import { createSession, destroySession, requireUser, userToday, gamesByIds, canS
 import { parseManual, expectedPuzzle, puzzleDate, detectGame } from '@/lib/games';
 import { addDays, todayIn, prettyDate } from '@/lib/dates';
 import { notify } from '@/lib/notify';
+import { scheduleLeagueGames, NOT_REMOVED } from '@/lib/league';
 import { sendPush } from '@/lib/push';
 import { formatScore } from '@/lib/games';
 
@@ -271,7 +272,7 @@ export async function submitScore(fd) {
   // Tell league-mates in every league that counts this game.
   const mates = await q(
     `select m2.user_id, min(m.league_id) as league_id from league_members m
-     join league_games g on g.league_id = m.league_id and g.game_id = $2
+     join league_games g on g.league_id = m.league_id and g.game_id = $2 and ${NOT_REMOVED}
      join league_members m2 on m2.league_id = m.league_id and m2.user_id <> $1
      where m.user_id = $1 group by m2.user_id`,
     [user.id, id]
@@ -384,10 +385,17 @@ export async function setLeagueGames(fd) {
   await q('update leagues set name = $1, is_public = $2, drop_worst = $3, daily_cap = $4 where id = $5', [
     name, fd.get('is_public') === 'on', fd.get('drop_worst') === 'on', cap >= 1 && cap <= 10 ? cap : null, id,
   ]);
-  await q('delete from league_games where league_id = $1', [id]);
-  for (const gid of Object.keys(games)) {
-    const w = Number(fd.get('weight_' + gid));
-    await q('insert into league_games (league_id, game_id, weight) values ($1, $2, $3)', [id, gid, [1, 2, 3].includes(w) ? w : 1]);
+  const weights = {};
+  for (const gid of Object.keys(games)) { const w = Number(fd.get('weight_' + gid)); weights[gid] = [1, 2, 3].includes(w) ? w : 1; }
+  const { added, removed } = await scheduleLeagueGames(id, Object.keys(games), weights, await userToday());
+  if (added.length || removed.length) {
+    const named = await gamesByIds([...added, ...removed]);
+    const list = (ids) => ids.map((g) => named[g]?.name ?? g).join(', ');
+    const parts = [added.length && `${list(added)} start${added.length === 1 ? 's' : ''} counting`, removed.length && `${list(removed)} stop${removed.length === 1 ? 's' : ''} counting`].filter(Boolean);
+    const msg = `${parts.join(' and ')} tomorrow. Today's results still count as they are.`;
+    const members = await q('select user_id from league_members where league_id = $1 and user_id <> $2', [id, user.id]);
+    await notify(members.map((r) => r.user_id), { kind: 'request', link: path, body: `${league.name}: ${msg}` });
+    ok(path, `Saved. ${msg}`);
   }
   ok(path, 'League settings saved.');
 }
@@ -521,7 +529,7 @@ export async function requestGame(fd) {
   if (!league?.is_member) fail('/leagues', 'You are not in that league.');
   const game = (await gamesByIds([gameId]))[gameId];
   if (!game) fail(path, 'Pick a game to request.');
-  if (await q1('select 1 from league_games where league_id = $1 and game_id = $2', [id, gameId])) fail(path, `${game.name} already counts in this league.`);
+  if (await q1(`select 1 from league_games g where league_id = $1 and game_id = $2 and ${NOT_REMOVED}`, [id, gameId])) fail(path, `${game.name} already counts in this league.`);
   if (await q1(`select 1 from league_messages where league_id = $1 and game_id = $2 and kind = 'request' and status = 'pending'`, [id, gameId])) {
     fail(path, `${game.name} has already been requested.`);
   }
@@ -542,16 +550,20 @@ export async function decideRequest(fd) {
   if (msg.owner_id !== user.id) fail(path, 'Only the league admin can decide game requests.');
   const game = (await gamesByIds([msg.game_id]))[msg.game_id];
   const approve = str(fd, 'answer') === 'approve' && game;
-  if (approve) await q('insert into league_games (league_id, game_id) values ($1, $2) on conflict do nothing', [msg.league_id, msg.game_id]);
+  if (approve) {
+    const current = (await q(`select game_id from league_games g where league_id = $1 and ${NOT_REMOVED}`, [msg.league_id])).map((r) => r.game_id);
+    const w = Object.fromEntries((await q('select game_id, weight from league_games where league_id = $1', [msg.league_id])).map((r) => [r.game_id, r.weight]));
+    await scheduleLeagueGames(msg.league_id, [...new Set([...current, msg.game_id])], w, await userToday());
+  }
   await q('update league_messages set status = $1 where id = $2', [approve ? 'approved' : 'declined', msg.id]);
   const name = game?.name ?? 'That game';
   if (approve) {
     const members = await q('select user_id from league_members where league_id = $1 and user_id <> $2', [msg.league_id, user.id]);
-    await notify(members.map((r) => r.user_id), { kind: 'request', link: `/leagues/${msg.league_id}`, body: `${name} now counts in ${msg.name}` });
+    await notify(members.map((r) => r.user_id), { kind: 'request', link: `/leagues/${msg.league_id}`, body: `${name} counts in ${msg.name} from tomorrow` });
   } else {
     await notify([msg.user_id], { kind: 'request', link: path, body: `The admin declined ${name} for ${msg.name}` });
   }
-  ok(path, approve ? `${name} added to the league.` : 'Request declined.');
+  ok(path, approve ? `${name} added. It starts counting tomorrow.` : 'Request declined.');
 }
 
 // Remind league-mates who haven't posted a game today. Each player gets at most one reminder per game per day.
@@ -563,7 +575,7 @@ export async function nudge(fd) {
   const path = `/leagues/${id}`;
   if (!league?.is_member) fail('/leagues', 'You are not in that league.');
   const game = (await gamesByIds([gameId]))[gameId];
-  if (!game || !(await q1('select 1 from league_games where league_id = $1 and game_id = $2', [id, gameId]))) fail(path, 'That game is not in this league.');
+  if (!game || !(await q1(`select 1 from league_games g where league_id = $1 and game_id = $2 and ${NOT_REMOVED}`, [id, gameId]))) fail(path, 'That game is not in this league.');
   const today = await userToday();
   const body = `Reminder: play today's ${game.name} for ${league.name}`;
   const targets = await q(

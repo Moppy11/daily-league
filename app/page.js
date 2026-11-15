@@ -35,7 +35,7 @@ export default async function Home({ searchParams }) {
 
   const leagues = (await Promise.all(leagueRows.map((r) => loadLeague(r.id)))).filter(Boolean);
   const ids = new Set(mine.map((r) => r.game_id));
-  for (const l of leagues) for (const id of Object.keys(l.games)) ids.add(id);
+  for (const l of leagues) for (const id of Object.keys(l.liveGames)) ids.add(id);
   const games = Object.values(await gamesByIds([...ids])).sort((a, b) => a.name.localeCompare(b.name));
   const todays = await q(
     `select s.id, s.game_id, s.score, s.manual, exists (select 1 from proofs p where p.score_id = s.id) as has_proof

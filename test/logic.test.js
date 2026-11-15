@@ -92,10 +92,10 @@ test('rank points and standings', () => {
 test('Size It Up reads the shared total and ranks higher scores first', () => {
   const share = 'Magnitudle — Size It Up\n2026-11-12\n\nScore: 305/500\n\n🟥🟥⬜⬜⬜ 39\n🟥🟥🟥🟥⬜ 83\n🟥🟥🟥🟥⬜ 89\n⬜⬜⬜⬜⬜ 8\n🟥🟥🟥🟥⬜ 86\n\nhttps://magnitudle.com/size-it-up';
   const game = builtin('size-it-up');
-  assert.deepEqual(game.parse(share), { puzzleNo: 2507, score: 305 });
-  assert.equal(puzzleDate(game, 2507), '2026-11-12');
+  assert.deepEqual(game.parse(share), { puzzleNo: 95, score: 305 });
+  assert.equal(puzzleDate(game, 95), '2026-11-12');
   assert.equal(game.parse(share.replace('305/500', '405/500')), null); // total edited, rounds no longer add up
-  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n')), { puzzleNo: 2507, score: 305 });
+  assert.deepEqual(game.parse(share.replaceAll('\n', '\r\n')), { puzzleNo: 95, score: 305 });
   assert.equal(game.parse(share.replace('305/500', '501/500')), null);
   assert.equal(game.parse(share.replace('305/500', '305/600')), null);
   assert.equal(formatScore(game, 305), '305/500');
@@ -265,4 +265,13 @@ test('weekly recap: winner, final table, most wins, best and worst per game', as
   const w = r.perGame.find((g) => g.game.id === 'wordle');
   assert.equal(w.best.value, 3); assert.equal(w.worst.value, 7); assert.equal(w.best.users[0].id, 1);
   assert.equal(weekRecap(scores, games, members, '2026-11-02', {}), null);
+});
+
+test('Size It Up: the new "#98" share and the older dated share', () => {
+  const now = 'Size It Up\n#98\n\nScore: 107/500\n\n⬜⬜⬜⬜⬜ 0\n🟥⬜⬜⬜⬜ 24\n🟥🟥🟥🟥⬜ 79\n⬜⬜⬜⬜⬜ 4\n⬜⬜⬜⬜⬜ 0\n\nhttps://magnitudle.com/size-it-up';
+  assert.deepEqual(p('size-it-up', now), { puzzleNo: 98, score: 107 });
+  assert.equal(p('size-it-up', now.replace('107/500', '307/500')), null);   // rows must add up
+  assert.equal(expectedPuzzle(builtin('size-it-up'), '2026-11-16'), 99);
+  const old = 'Magnitudle — Size It Up\n2026-11-14\nScore: 107/500\n⬜⬜⬜⬜⬜ 0\n🟥⬜⬜⬜⬜ 24\n🟥🟥🟥🟥⬜ 79\n⬜⬜⬜⬜⬜ 4\n⬜⬜⬜⬜⬜ 0';
+  assert.deepEqual(p('size-it-up', old), { puzzleNo: 97, score: 107 });
 });
