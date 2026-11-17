@@ -287,3 +287,14 @@ test('admin deductions come off in any table that includes that day', () => {
   const monday = standings(scores.filter((s) => s.play_date === '2026-11-16'), games, members, { deductions });
   assert.equal(monday.find((r) => r.user.id === 1).total, 10);   // the deduction is on Tuesday, not Monday
 });
+
+test('Noillirk: metres below 10 km, kilometres above', () => {
+  const perfect = 'Noillirk 🎈 The Daily Climb · No. 52 · 14 km\n\n🟨🟨🟨🟨🟨🟨🟨\n\nPerfect climb. Every answer was the top answer.\n\nClimb today\'s prompts: https://playdaily.org/noillirk';
+  assert.deepEqual(p('noillirk', perfect), { puzzleNo: 52, score: 14000 });
+  assert.equal(formatScore(builtin('noillirk'), 14000), '14 km');
+  assert.deepEqual(p('noillirk', perfect.replace('14 km', '10.4 km')), { puzzleNo: 52, score: 10400 });
+  assert.deepEqual(p('noillirk', perfect.replace('14 km', '3,163m')), { puzzleNo: 52, score: 3163 });
+  assert.equal(formatScore(builtin('noillirk'), 3163), '3,163 m');
+  assert.equal(p('noillirk', perfect.replace('14 km', '4 km')), null);   // never shared as km under 10 km
+  assert.equal(expectedPuzzle(builtin('noillirk'), '2026-11-17'), 52);
+});
