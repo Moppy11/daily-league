@@ -19,7 +19,7 @@ export default async function LeaguePage({ params, searchParams }) {
   const user = await requireUser(`/leagues/${id}`);
   const data = /^\d+$/.test(id) ? await loadLeague(Number(id), await userToday()) : null;
   if (!data) notFound();
-  const { league, members, games, liveGames, plan, scores, weights, opts } = data;
+  const { league, members, games, liveGames, plan, scores, weights, opts, penalties } = data;
   if (!members.some((m) => m.id === user.id)) {
     return <section className="card narrow"><h1>{league.name}</h1><p>You&apos;re not a member of this league. Ask a member for the invite link.</p></section>;
   }
@@ -140,6 +140,12 @@ export default async function LeaguePage({ params, searchParams }) {
           {stopsTonight.length > 0 && <span>👋 <b>{stopsTonight.map((g) => games[g]?.name ?? g).join(', ')}</b> stop{stopsTonight.length === 1 ? 's' : ''} counting after today. </span>}
         </p>
       )}
+      {penalties.filter((p) => p.kind === 'ban' && p.on_date === today).map((p) => (
+        <p className="card notice small" key={p.id}>
+          🚫 {p.user_id === user.id ? <><b>You&apos;re</b> banned</> : <><b>{p.display_name}</b> is banned</>} from <b>{games[p.game_id]?.name ?? p.game_id}</b> in this league today
+          {p.user_id === user.id ? ': a result you post still counts in your other leagues.' : '.'}{p.reason ? ` Reason: ${p.reason}` : ''}
+        </p>
+      ))}
       {recapOpen && <WeeklyRecap recap={recap} league={league} me={user.id} dismiss />}
 
       <div className="cols">
@@ -180,7 +186,7 @@ export default async function LeaguePage({ params, searchParams }) {
                     {view === 'all'
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
                       : <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
-                    <td className="pts-cell">{r.total}</td>
+                    <td className="pts-cell">{r.total}{r.penalty > 0 && <small className="penalty" title={`${r.penalty} points taken off by the admin`}> −{r.penalty}</small>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -242,8 +248,25 @@ export default async function LeaguePage({ params, searchParams }) {
                                 {s.user_id !== user.id && !f?.mine && <button className="btn small" formAction={queryScore}>⚑ Query this result</button>}
                                 {f?.mine && <span className="muted small">You&apos;ve queried this.</span>}
                                 {isOwner && f && <button className="btn small" formAction={keepScore}>Keep it</button>}
-                                {isOwner && <button className="btn small danger" formAction={removeScore}>Remove from league</button>}
                               </form>
+                              {isOwner && (
+                                <form action={removeScore} className="stack penalty-form">
+                                  <input type="hidden" name="league" value={league.id} />
+                                  <input type="hidden" name="score" value={s.id} />
+                                  <input type="hidden" name="back" value={href({})} />
+                                  <label className="small">Penalty for {byId[s.user_id].display_name}
+                                    <select name="penalty" defaultValue="none">
+                                      <option value="none">None, just remove the result</option>
+                                      <option value="ban">Banned from {g.name} tomorrow</option>
+                                      <option value="points5">Minus 5 points this week</option>
+                                      <option value="points10">Minus 10 points this week</option>
+                                    </select>
+                                  </label>
+                                  <input name="reason" maxLength={140} placeholder="Reason (optional, everyone sees it)" aria-label="Reason" />
+                                  <Submit className="btn small danger">Remove from league</Submit>
+                                  <p className="muted small">The result stops counting here, and {byId[s.user_id].display_name} and the league are told.</p>
+                                </form>
+                              )}
                             </div>
                           </details>
                         </span>

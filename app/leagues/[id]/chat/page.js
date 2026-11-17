@@ -82,6 +82,14 @@ export default async function Chat({ params, searchParams }) {
                   </div>
                 );
               }
+              if (m.kind === 'notice') {
+                return (
+                  <div className="card notice-msg" key={m.id}>
+                    <h3>⚖️ Admin decision</h3>
+                    <p>{m.body}</p>
+                  </div>
+                );
+              }
               if (m.kind === 'request') {
                 const game = known[m.game_id];
                 return (

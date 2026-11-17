@@ -275,3 +275,15 @@ test('Size It Up: the new "#98" share and the older dated share', () => {
   const old = 'Magnitudle — Size It Up\n2026-11-14\nScore: 107/500\n⬜⬜⬜⬜⬜ 0\n🟥⬜⬜⬜⬜ 24\n🟥🟥🟥🟥⬜ 79\n⬜⬜⬜⬜⬜ 4\n⬜⬜⬜⬜⬜ 0';
   assert.deepEqual(p('size-it-up', old), { puzzleNo: 97, score: 107 });
 });
+
+test('admin deductions come off in any table that includes that day', () => {
+  const members = [{ id: 1, display_name: 'A' }, { id: 2, display_name: 'B' }];
+  const games = { wordle: builtin('wordle') };
+  const scores = [{ user_id: 1, game_id: 'wordle', play_date: '2026-11-16', score: 3 }, { user_id: 2, game_id: 'wordle', play_date: '2026-11-16', score: 4 },
+                  { user_id: 1, game_id: 'wordle', play_date: '2026-11-17', score: 3 }, { user_id: 2, game_id: 'wordle', play_date: '2026-11-17', score: 4 }];
+  const deductions = [{ user_id: 1, date: '2026-11-17', points: 10 }];
+  const week = standings(scores, games, members, { deductions });
+  assert.deepEqual(week.map((r) => [r.user.id, r.total, r.penalty]), [[2, 14, 0], [1, 10, 10]]);
+  const monday = standings(scores.filter((s) => s.play_date === '2026-11-16'), games, members, { deductions });
+  assert.equal(monday.find((r) => r.user.id === 1).total, 10);   // the deduction is on Tuesday, not Monday
+});

@@ -397,3 +397,10 @@ a.play-chip:hover { border-color: var(--accent); }
 .recap-fold { margin-top: 10px; }
 .recap-fold summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .recap-fold .recap { margin-top: 8px; }
+
+/* Admin penalties */
+.penalty-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); gap: 8px; }
+.penalty-form select, .penalty-form input { font-size: .9rem; }
+.pts-cell .penalty { color: var(--err); font-weight: 600; }
+.notice-msg { border-left: 4px solid var(--err); }
+.notice-msg h3 { margin: 0 0 4px; font-size: 1rem; }

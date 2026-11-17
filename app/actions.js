@@ -482,16 +482,43 @@ async function decideScore(fd, choice) {
   const path = fd.get('back') ? safeNext(str(fd, 'back')) : `/leagues/${id}`;
   if (!league || league.owner_id !== user.id) fail('/leagues', 'Only the league admin can do that.');
   const score = await q1(
-    `select s.id, s.user_id, s.game_id from scores s join league_members m on m.user_id = s.user_id and m.league_id = $2 where s.id = $1`,
+    `select s.id, s.user_id, s.game_id, s.score, s.play_date::text as play_date, u.display_name from scores s
+     join users u on u.id = s.user_id join league_members m on m.user_id = s.user_id and m.league_id = $2 where s.id = $1`,
     [scoreId, id]
   );
   if (!score) fail(path, 'That result is not in this league.');
   await q('delete from score_flags where score_id = $1 and league_id = $2', [scoreId, id]);
   if (choice === 'remove') {
-    await q('insert into league_exclusions (league_id, score_id) values ($1, $2) on conflict do nothing', [id, scoreId]);
+    const added = await q('insert into league_exclusions (league_id, score_id) values ($1, $2) on conflict do nothing returning 1', [id, scoreId]);
+    if (!added.length) fail(path, 'That result was already removed.');
     const game = (await gamesByIds([score.game_id]))[score.game_id];
-    await notify([score.user_id], { kind: 'admin', link: path, body: `The admin removed your ${game?.name ?? ''} result from ${league.name}` });
-    ok(path, 'Result removed from this league.');
+    const gname = game?.name ?? 'a game';
+    // The penalty the admin picked. A ban is for tomorrow (the player's result for that game won't count in this
+    // league that day); points come off today, so they hit this week's table.
+    const kind = str(fd, 'penalty');
+    const reason = str(fd, 'reason').replace(/\s+/g, ' ').slice(0, 140);
+    const today = await userToday();
+    const pen = kind === 'ban' ? { kind: 'ban', on: addDays(today, 1), points: 0, text: `banned from ${gname} tomorrow` }
+      : kind === 'points5' ? { kind: 'points', on: today, points: 5, text: 'minus 5 points this week' }
+      : kind === 'points10' ? { kind: 'points', on: today, points: 10, text: 'minus 10 points this week' }
+      : { kind: 'none', on: today, points: 0, text: '' };
+    await q(
+      `insert into league_penalties (league_id, user_id, game_id, score_id, kind, on_date, points, reason, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, score.user_id, score.game_id, scoreId, pen.kind, pen.on, pen.points, reason || null, user.id]
+    );
+    const shown = `${gname} ${formatScore(game, Number(score.score))} on ${prettyDate(score.play_date)}`;
+    const why = reason ? ` Reason: ${reason}` : '';
+    const penalty = pen.text ? ` Penalty: ${pen.text}.` : '';
+    await notify([score.user_id], { kind: 'admin', link: path,
+      body: `The admin removed your ${shown} from ${league.name}.${penalty}${why}` });
+    const others = await q('select user_id from league_members where league_id = $1 and user_id not in ($2, $3)', [id, user.id, score.user_id]);
+    await notify(others.map((r) => r.user_id), { kind: 'admin', link: path,
+      body: `⚖️ ${league.name}: ${score.display_name}'s ${shown} was removed by the admin.${penalty}` });
+    // On the record in the league chat, for everyone to see.
+    await q(`insert into league_messages (league_id, user_id, kind, game_id, body) values ($1, $2, 'notice', $3, $4)`,
+      [id, user.id, score.game_id, `${score.display_name}'s ${shown} was removed from the league.${penalty}${why}`]);
+    ok(path, `Result removed.${penalty} ${score.display_name} and the league have been told.`);
   }
   ok(path, 'Result kept.');
 }
