@@ -404,3 +404,14 @@ a.play-chip:hover { border-color: var(--accent); }
 .pts-cell .penalty { color: var(--err); font-weight: 600; }
 .notice-msg { border-left: 4px solid var(--err); }
 .notice-msg h3 { margin: 0 0 4px; font-size: 1rem; }
+
+/* Pop-up moments: personal bests and worsts, league records */
+.moment-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 12, 18, 0.55); }
+.moment { max-width: 420px; width: 100%; background: var(--card); box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align: center; animation: moment-in .35s cubic-bezier(.2, 1.4, .4, 1); border-width: 2px; }
+.moment.good { border-color: var(--ok); }
+.moment.bad { border-color: var(--err); }
+.moment-body { font-size: 1.15rem; font-weight: 600; line-height: 1.4; margin: 6px 0 12px; }
+.moment-actions { justify-content: center; gap: 10px; }
+@keyframes moment-in { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.records-broken li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.records-broken li:last-child { border-bottom: 0; }

@@ -4,7 +4,7 @@ import { requireUser, userToday } from '@/lib/auth';
 import { remainingToday } from '@/lib/notify';
 import { ago } from '@/lib/dates';
 
-const ICON = { score: '📊', chat: '💬', request: '🎮', nudge: '⏰', friend: '👥', join: '🏆', invite: '✉️', account: '🔑', duel: '⚔️', flag: '⚑', admin: '🛠️' };
+const ICON = { score: '📊', chat: '💬', request: '🎮', nudge: '⏰', friend: '👥', join: '🏆', invite: '✉️', account: '🔑', duel: '⚔️', flag: '⚑', admin: '🛠️', laugh: '😂' };
 
 export default async function Notifications() {
   const user = await requireUser('/notifications');

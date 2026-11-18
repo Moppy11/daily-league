@@ -12,6 +12,7 @@ import { addDays, todayIn, prettyDate } from '@/lib/dates';
 import { notify } from '@/lib/notify';
 import { scheduleLeagueGames, NOT_REMOVED } from '@/lib/league';
 import { sendPush } from '@/lib/push';
+import { checkMoments } from '@/lib/moments';
 import { formatScore } from '@/lib/games';
 
 const str = (fd, k) => String(fd.get(k) ?? '').trim();
@@ -313,7 +314,38 @@ export async function submitScore(fd) {
       body: `${user.display_name} posted ${game.name}: ${formatScore(game, score)}${manual ? (text ? ' (edited after pasting)' : ' (entered by hand)') : ''}`,
     });
   }
+  // Personal bests and worsts, and league records: pop-ups (a failure here never loses the saved result).
+  try { await checkMoments(user, game, res[0].id, Number(score), date, today); } catch (e) { console.error('moments', e); }
   ok('/', date === today ? `${game.name} score saved.` : `${game.name} score saved for ${prettyDate(date)}.`);
+}
+
+/* ---------- pop-up moments ---------- */
+
+export async function dismissMoment(fd) {
+  const user = await requireUser();
+  await q('update moments set seen_at = now() where id = $1 and user_id = $2', [Number(fd.get('moment')), user.id]);
+  revalidatePath('/', 'layout');
+}
+
+// Laugh at a league's worst-ever result. Its holder hears about every laugh.
+export async function laughRecord(fd) {
+  const user = await requireUser();
+  const eventId = Number(fd.get('event'));
+  const ev = await q1(
+    `select e.id, e.user_id, e.game_id, e.score, e.league_id, l.name from record_events e join leagues l on l.id = e.league_id
+     join league_members m on m.league_id = e.league_id and m.user_id = $2 where e.id = $1 and e.kind = 'worst'`,
+    [eventId, user.id]
+  );
+  if (fd.get('moment')) await q('update moments set seen_at = now() where id = $1 and user_id = $2', [Number(fd.get('moment')), user.id]);
+  if (ev && ev.user_id !== user.id) {
+    const added = await q('insert into record_laughs (event_id, user_id) values ($1, $2) on conflict do nothing returning 1', [ev.id, user.id]);
+    if (added.length) {
+      const game = (await gamesByIds([ev.game_id]))[ev.game_id];
+      await notify([ev.user_id], { kind: 'laugh', link: `/leagues/${ev.league_id}`,
+        body: `😂 ${user.display_name} laughed at your record-low ${game?.name ?? ''} ${game ? formatScore(game, Number(ev.score)) : ''} in ${ev.name}` });
+    }
+  }
+  revalidatePath('/', 'layout');
 }
 
 /* ---------- leagues ---------- */

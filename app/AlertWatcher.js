@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
-const ICON = { score: '📊', chat: '💬', request: '🎮', nudge: '⏰', friend: '👥', join: '🏆', invite: '✉️', account: '🔑', duel: '⚔️', flag: '⚑', admin: '🛠️' };
+const ICON = { score: '📊', chat: '💬', request: '🎮', nudge: '⏰', friend: '👥', join: '🏆', invite: '✉️', account: '🔑', duel: '⚔️', flag: '⚑', admin: '🛠️', laugh: '😂' };
 const soundOn = () => { try { return localStorage.getItem('alertSound') !== 'off'; } catch { return true; } };
 
 // Two soft rising notes, made in the browser, so there's no sound file to load.

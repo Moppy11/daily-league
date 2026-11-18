@@ -6,9 +6,10 @@ import { GAMES, formatScore, formatAvg } from '@/lib/games';
 import { addDays, isDate, weekStart, weekLabel, prettyDate } from '@/lib/dates';
 import { weeklyWinners, weeklyWinCounts, leagueRecords, weekRecap, bestWorstLabels } from '@/lib/records';
 import WeeklyRecap from '@/app/WeeklyRecap';
+import { recentRecords } from '@/lib/moments';
 import { loadLeague, ensureRecap } from '@/lib/league';
 import { standings, withPositions, rankDay, POINTS } from '@/lib/points';
-import { inviteFriend, leaveLeague, setLeagueGames, nudge, manageMember, queryScore, keepScore, removeScore } from '../../actions';
+import { inviteFriend, leaveLeague, setLeagueGames, nudge, manageMember, queryScore, keepScore, removeScore, laughRecord } from '../../actions';
 import { Flash, Medal } from '../../ui';
 import CopyLink from '../../CopyLink';
 import Submit from '../../Submit';
@@ -62,6 +63,7 @@ export default async function LeaguePage({ params, searchParams }) {
   const recap = weekRecap(scores, games, members, lastWeek, opts);
   const recapOpen = recap && (members.find((m) => m.id === user.id)?.joined_on ?? today) <= addDays(lastWeek, 6)
     && !(await q1('select 1 from recap_seen where user_id = $1 and league_id = $2 and week = $3', [user.id, league.id, lastWeek]));
+  const broken = await recentRecords(league.id, user.id);
   const names = (r) => (r.users.length > 3 ? `${r.users.length} players` : r.users.map((u) => u.display_name).join(' & '));
 
   // ---- Results for the chosen day, game by game ----
@@ -311,6 +313,33 @@ export default async function LeaguePage({ params, searchParams }) {
         <>
           <h2>League records</h2>
           <p className="muted small">From results posted in this league only.</p>
+          {broken.length > 0 && (
+            <section className="card">
+              <h3>📣 Records broken</h3>
+              <ul className="records-broken">
+                {broken.map((e) => {
+                  const g = games[e.game_id];
+                  return (
+                    <li key={e.id}>
+                      <span className="grow">
+                        {e.kind === 'best' ? '🏆' : '🤡'} <b>{e.display_name}</b>{' '}
+                        {e.kind === 'best' ? 'set the best ever' : 'set the worst ever'} {g?.name ?? e.game_id}: <b>{g ? formatScore(g, Number(e.score)) : e.score}</b>
+                        <small className="muted"> · {prettyDate(e.play_date)}{e.prev_name ? ` · old record ${g ? formatScore(g, Number(e.prev_score)) : e.prev_score} by ${e.prev_name}` : ''}</small>
+                      </span>
+                      {e.kind === 'worst' && (e.user_id === user.id || e.laughed
+                        ? <span className="muted small" title="Laughs">😂 {e.laughs}</span>
+                        : (
+                          <form action={laughRecord}>
+                            <input type="hidden" name="event" value={e.id} />
+                            <button className="btn small" title="Laugh at this record low">😂 {e.laughs || 'Laugh'}</button>
+                          </form>
+                        ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
           <div className="grid records">
             <section className="card">
               <h3>🏅 League</h3>
