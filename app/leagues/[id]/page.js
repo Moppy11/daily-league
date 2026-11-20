@@ -7,6 +7,7 @@ import { addDays, isDate, weekStart, weekLabel, prettyDate } from '@/lib/dates';
 import { weeklyWinners, weeklyWinCounts, leagueRecords, weekRecap, bestWorstLabels } from '@/lib/records';
 import WeeklyRecap from '@/app/WeeklyRecap';
 import { recentRecords } from '@/lib/moments';
+import { openBallotWeek } from '@/lib/votes';
 import { loadLeague, ensureRecap } from '@/lib/league';
 import { standings, withPositions, rankDay, POINTS } from '@/lib/points';
 import { inviteFriend, leaveLeague, setLeagueGames, nudge, manageMember, queryScore, keepScore, removeScore, laughRecord } from '../../actions';
@@ -120,6 +121,7 @@ export default async function LeaguePage({ params, searchParams }) {
       <div className="pills" aria-label="League sections">
         <Link href={base} className="on">🏆 Table</Link>
         <Link href={`${base}/chat`} prefetch={false}>💬 Chat{unseen > 0 ? ` · ${unseen} new` : ''}</Link>
+        <Link href={`${base}/vote`} prefetch={false}>🗳️ Games vote{openBallotWeek(today) ? ' · open' : ''}</Link>
       </div>
 
       <nav className="card play-strip" aria-label="Play today's games">
@@ -148,6 +150,12 @@ export default async function LeaguePage({ params, searchParams }) {
           {p.user_id === user.id ? ': a result you post still counts in your other leagues.' : '.'}{p.reason ? ` Reason: ${p.reason}` : ''}
         </p>
       ))}
+      {openBallotWeek(today) && (
+        <Link href={`${base}/vote`} className="card notice">
+          <span>🗳️ <b>Vote on next week&apos;s games.</b> Open until Sunday 11:59pm. Two &quot;no&quot; votes and a game is out.</span>
+          <span>→</span>
+        </Link>
+      )}
       {recapOpen && <WeeklyRecap recap={recap} league={league} me={user.id} dismiss />}
 
       <div className="cols">

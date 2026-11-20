@@ -13,6 +13,7 @@ import { notify } from '@/lib/notify';
 import { scheduleLeagueGames, NOT_REMOVED } from '@/lib/league';
 import { sendPush } from '@/lib/push';
 import { checkMoments } from '@/lib/moments';
+import { openBallotWeek, ballot } from '@/lib/votes';
 import { formatScore } from '@/lib/games';
 
 const str = (fd, k) => String(fd.get(k) ?? '').trim();
@@ -317,6 +318,53 @@ export async function submitScore(fd) {
   // Personal bests and worsts, and league records: pop-ups (a failure here never loses the saved result).
   try { await checkMoments(user, game, res[0].id, Number(score), date, today); } catch (e) { console.error('moments', e); }
   ok('/', date === today ? `${game.name} score saved.` : `${game.name} score saved for ${prettyDate(date)}.`);
+}
+
+/* ---------- the weekly games vote ---------- */
+
+export async function castVote(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league')), gameId = str(fd, 'game'), vote = str(fd, 'vote');
+  const path = `/leagues/${id}/vote`;
+  const league = await membership(id, user.id);
+  if (!league?.is_member) fail('/leagues', 'You are not in that league.');
+  const week = openBallotWeek(await userToday());
+  if (!week) fail(path, 'Voting is open from Friday until Sunday at 11:59pm.');
+  if (!(await ballot(id, week)).some((i) => i.game.id === gameId)) fail(path, 'That game is not on this week\'s ballot.');
+  if (vote !== 'yes' && vote !== 'no') fail(path, 'Vote yes or no.');
+  const added = await q(
+    'insert into game_votes (league_id, week, game_id, user_id, vote) values ($1, $2, $3, $4, $5) on conflict do nothing returning 1',
+    [id, week, gameId, user.id, vote === 'yes']);
+  if (!added.length) fail(path, 'You have already voted on that game.');
+  revalidatePath('/', 'layout');
+  ok(path);
+}
+
+export async function nominateGame(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league')), gameId = str(fd, 'game');
+  const path = `/leagues/${id}/vote`;
+  const league = await membership(id, user.id);
+  if (!league?.is_member) fail('/leagues', 'You are not in that league.');
+  const week = openBallotWeek(await userToday());
+  if (!week) fail(path, 'Games can be put forward from Friday until Sunday at 11:59pm.');
+  const game = (await gamesByIds([gameId]))[gameId];
+  if (!game) fail(path, 'Pick a game to put forward.');
+  if ((await ballot(id, week)).some((i) => i.game.id === gameId)) fail(path, `${game.name} is already on the ballot.`);
+  await q('insert into vote_nominations (league_id, week, game_id, user_id) values ($1, $2, $3, $4) on conflict do nothing', [id, week, gameId, user.id]);
+  const others = await q('select user_id from league_members where league_id = $1 and user_id <> $2', [id, user.id]);
+  await notify(others.map((r) => r.user_id), { kind: 'request', link: path, body: `${user.display_name} put ${game.name} on ${league.name}'s games vote. Give it a try, then vote.` });
+  ok(path, `${game.name} is on the ballot. Everyone has been asked to try it.`);
+}
+
+// "Later": the Friday reminder stays away for the rest of today.
+export async function dismissVotePrompt(fd) {
+  const user = await requireUser();
+  const today = await userToday();
+  for (const id of fd.getAll('league').map(Number).filter(Boolean)) {
+    await q('insert into vote_prompt_seen (user_id, league_id, day) values ($1, $2, $3) on conflict do nothing', [user.id, id, today]);
+  }
+  revalidatePath('/', 'layout');
 }
 
 /* ---------- pop-up moments ---------- */

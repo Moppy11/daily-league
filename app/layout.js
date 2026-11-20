@@ -9,6 +9,8 @@ import Nav from './Nav';
 import AlertWatcher from './AlertWatcher';
 import Moments from './Moments';
 import { unseenMoments } from '@/lib/moments';
+import VotePrompt from './VotePrompt';
+import { votePrompts } from '@/lib/votes';
 
 const DESCRIPTION = 'Post your Wordle, Krillion, Connections and other daily game results, earn points against friends every day, and win the week.';
 
@@ -24,9 +26,10 @@ export const viewport = { width: 'device-width', initialScale: 1, themeColor: '#
 
 export default async function RootLayout({ children }) {
   const user = await getUser();
-  let alerts = 0, moments = [];
+  let alerts = 0, moments = [], votes = [];
   if (user) {
     moments = await unseenMoments(user.id);
+    if (!moments.length) votes = await votePrompts(user.id, await userToday());
     alerts = await unreadCount(user.id);
     // From 6pm, games still to post count as one more alert.
     if ((await userHour()) >= 18 && (await remainingToday(user.id, await userToday())).length) alerts++;
@@ -37,6 +40,7 @@ export default async function RootLayout({ children }) {
         <TzSync />
         {user && <AlertWatcher />}
         {moments.length > 0 && <Moments moments={moments} me={user.id} />}
+        {votes.length > 0 && <VotePrompt prompts={votes} />}
         <header className="top">
           <Link href="/" className="brand"><img src="/logo.svg" alt="" width="26" height="26" /> Daily League</Link>
           {user && <Nav username={user.username} alerts={alerts} />}

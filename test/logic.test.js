@@ -298,3 +298,20 @@ test('Noillirk: metres below 10 km, kilometres above', () => {
   assert.equal(p('noillirk', perfect.replace('14 km', '4 km')), null);   // never shared as km under 10 km
   assert.equal(expectedPuzzle(builtin('noillirk'), '2026-11-17'), 52);
 });
+
+test('Hunch Daily Balance It: score, squares and link must agree', () => {
+  const share = 'Hunch Daily Balance It #42\n367/500\n🟥🟩🟩🟧🟩\nhttps://hunchdaily.com/balance-game/daily/?day=42&s=367';
+  assert.deepEqual(p('balance-it', share), { puzzleNo: 42, score: 367 });
+  assert.equal(detectGame(share).game.id, 'balance-it');
+  assert.equal(p('balance-it', share.replace('367/500', '467/500')), null);     // score edited, link disagrees
+  assert.equal(p('balance-it', share.replace('🟥🟩🟩🟧🟩', '🟥🟩')), null);        // squares missing
+  assert.equal(expectedPuzzle(builtin('balance-it'), '2026-11-20'), 42);
+});
+
+test('games vote is open Friday to Sunday, for the coming Monday', async () => {
+  const { openBallotWeek } = await import('../lib/dates.js');
+  assert.equal(openBallotWeek('2026-11-19'), null);            // Thursday
+  assert.equal(openBallotWeek('2026-11-20'), '2026-11-23');    // Friday
+  assert.equal(openBallotWeek('2026-11-22'), '2026-11-23');    // Sunday
+  assert.equal(openBallotWeek('2026-11-23'), null);            // Monday: the vote has closed
+});

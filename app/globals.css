@@ -35,6 +35,10 @@ main { max-width: 760px; margin: 0 auto; padding: 4px 16px 110px; }
 .tabs {
   position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around;
   background: var(--card); border-top: 1px solid var(--line);
+  /* Always on top of the page and always tappable: without a stacking order, cards and open panels that scroll
+     under it were painted over it (most visibly on a phone home-screen app), so it looked see-through. */
+  z-index: 40; opacity: 1; pointer-events: auto; transform: translateZ(0); -webkit-transform: translateZ(0);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
 }
 .tabs a { display: flex; flex-direction: column; align-items: center; font-size: .72rem; color: var(--muted); padding: 4px 10px; min-width: 56px; }
@@ -415,3 +419,8 @@ a.play-chip:hover { border-color: var(--accent); }
 @keyframes moment-in { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .records-broken li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .records-broken li:last-child { border-bottom: 0; }
+
+/* Weekly games vote */
+.vote-row .row { align-items: center; gap: 10px; }
+.vote-buttons { margin-top: 8px; }
+.vote-out { color: var(--err); }

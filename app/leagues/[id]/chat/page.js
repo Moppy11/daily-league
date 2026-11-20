@@ -58,8 +58,9 @@ export default async function Chat({ params, searchParams }) {
         </div>
       </div>
       <div className="pills" aria-label="League sections">
-        <Link href={`/leagues/${league.id}`}>🏆 Standings</Link>
+        <Link href={`/leagues/${league.id}`}>🏆 Table</Link>
         <Link href={`/leagues/${league.id}/chat`} className="on">💬 Chat</Link>
+        <Link href={`/leagues/${league.id}/vote`} prefetch={false}>🗳️ Games vote</Link>
       </div>
       <Flash sp={sp} />
 
