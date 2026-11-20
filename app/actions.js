@@ -13,7 +13,7 @@ import { notify } from '@/lib/notify';
 import { scheduleLeagueGames, NOT_REMOVED } from '@/lib/league';
 import { sendPush } from '@/lib/push';
 import { checkMoments } from '@/lib/moments';
-import { openBallotWeek, ballot } from '@/lib/votes';
+import { openBallotWeek, ballot, resolveTie, MAX_GAMES } from '@/lib/votes';
 import { formatScore } from '@/lib/games';
 
 const str = (fd, k) => String(fd.get(k) ?? '').trim();
@@ -357,6 +357,19 @@ export async function nominateGame(fd) {
   ok(path, `${game.name} is on the ballot. Everyone has been asked to try it.`);
 }
 
+// Admin: settle a tie for the last places in the games vote.
+export async function settleTie(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league'));
+  const path = `/leagues/${id}/vote`;
+  const league = await membership(id, user.id);
+  if (!league || league.owner_id !== user.id) fail(path, 'Only the league admin can settle a tie.');
+  const r = await resolveTie(id, await userToday(), fd.getAll('game').map(String));
+  if (r.error) fail(path, r.error);
+  revalidatePath('/', 'layout');
+  ok(path, 'Tie settled. Everyone has been told.');
+}
+
 // "Later": the Friday reminder stays away for the rest of today.
 export async function dismissVotePrompt(fd) {
   const user = await requireUser();
@@ -423,6 +436,7 @@ export async function createLeague(fd) {
   if (name.length < 2 || name.length > 40) fail('/leagues', 'Give the league a name (2–40 characters).');
   const games = await gamesByIds(ids);
   if (!Object.keys(games).length) fail('/leagues', 'Pick at least one game.');
+  if (Object.keys(games).length > MAX_GAMES) fail('/leagues', `Pick ${MAX_GAMES} games at most, so the league never feels like a chore.`);
   const code = randomBytes(5).toString('hex');
   const league = await q1('insert into leagues (name, code, owner_id) values ($1, $2, $3) returning id', [name, code, user.id]);
   await q('insert into league_members (league_id, user_id, joined_on) values ($1, $2, $3)', [league.id, user.id, await userToday()]);
@@ -489,6 +503,7 @@ export async function setLeagueGames(fd) {
   if (name.length < 2 || name.length > 40) fail(path, 'League name must be 2–40 characters.');
   const games = await gamesByIds(fd.getAll('games').map(String));
   if (!Object.keys(games).length) fail(path, 'A league needs at least one game.');
+  if (Object.keys(games).length > MAX_GAMES) fail(path, `A league can have at most ${MAX_GAMES} games, so it never feels like a chore. Untick ${Object.keys(games).length - MAX_GAMES}.`);
   const cap = Number(fd.get('daily_cap'));
   await q('update leagues set name = $1, is_public = $2, drop_worst = $3, daily_cap = $4 where id = $5', [
     name, fd.get('is_public') === 'on', fd.get('drop_worst') === 'on', cap >= 1 && cap <= 10 ? cap : null, id,
@@ -687,6 +702,9 @@ export async function decideRequest(fd) {
   const approve = str(fd, 'answer') === 'approve' && game;
   if (approve) {
     const current = (await q(`select game_id from league_games g where league_id = $1 and ${NOT_REMOVED}`, [msg.league_id])).map((r) => r.game_id);
+    if (!current.includes(msg.game_id) && current.length >= MAX_GAMES) {
+      fail(path, `The league already has ${MAX_GAMES} games, the most a league can have. Remove one in settings first, or put ${game.name} to Friday's games vote.`);
+    }
     const w = Object.fromEntries((await q('select game_id, weight from league_games where league_id = $1', [msg.league_id])).map((r) => [r.game_id, r.weight]));
     await scheduleLeagueGames(msg.league_id, [...new Set([...current, msg.game_id])], w, await userToday());
   }

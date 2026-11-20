@@ -4,8 +4,8 @@ import { q1 } from '@/lib/db';
 import { requireUser, userToday } from '@/lib/auth';
 import { GAMES } from '@/lib/games';
 import { addDays, prettyDate } from '@/lib/dates';
-import { openBallotWeek, ballot, NO_LIMIT } from '@/lib/votes';
-import { castVote, nominateGame } from '../../../actions';
+import { openBallotWeek, ballot, pendingTie, NO_LIMIT, MAX_GAMES } from '@/lib/votes';
+import { castVote, nominateGame, settleTie } from '../../../actions';
 import { Flash } from '../../../ui';
 import Submit from '../../../Submit';
 
@@ -17,13 +17,15 @@ export default async function VotePage({ params, searchParams }) {
   const user = await requireUser(`/leagues/${id}/vote`);
   if (!/^\d+$/.test(id)) notFound();
   const league = await q1(
-    `select l.id, l.name from leagues l join league_members m on m.league_id = l.id and m.user_id = $2 where l.id = $1`, [Number(id), user.id]);
+    `select l.id, l.name, l.owner_id from leagues l join league_members m on m.league_id = l.id and m.user_id = $2 where l.id = $1`, [Number(id), user.id]);
   if (!league) notFound();
   const today = await userToday();
   const week = openBallotWeek(today);
   const items = week ? await ballot(league.id, week, user.id) : [];
   const onBallot = new Set(items.map((i) => i.game.id));
   const left = items.filter((i) => i.mine === null).length;
+  const tie = await pendingTie(league.id, today);
+  const isAdmin = league.owner_id === user.id;
 
   return (
     <>
@@ -39,10 +41,30 @@ export default async function VotePage({ params, searchParams }) {
         <Link href={`/leagues/${league.id}/vote`} className="on">🗳️ Games vote{week ? ' · open' : ''}</Link>
       </div>
       <Flash sp={sp} />
+      {tie && (
+        <section className="card notice tie">
+          <div className="grow">
+            <p><b>🤝 It&apos;s a tie for the last {tie.slots === 1 ? 'place' : `${tie.slots} places`}</b> ({MAX_GAMES} games max).{' '}
+              {isAdmin ? `Pick ${tie.slots} to play this week; results from Monday count.` : 'The admin is picking. Results from Monday will count.'}</p>
+            {isAdmin ? (
+              <form action={settleTie} className="stack">
+                <input type="hidden" name="league" value={league.id} />
+                <div className="checks">
+                  {tie.items.map((i) => (
+                    <label className="check" key={i.game.id}><input type="checkbox" name="game" value={i.game.id} /> {i.game.emoji} {i.game.name}</label>
+                  ))}
+                </div>
+                <Submit className="btn small primary">Settle the tie</Submit>
+              </form>
+            ) : <p className="small">{tie.items.map((i) => `${i.game.emoji} ${i.game.name}`).join(' · ')}</p>}
+          </div>
+        </section>
+      )}
       {!week ? (
         <section className="card">
           <p>Voting opens on <b>Friday</b> and closes on <b>Sunday at 11:59pm</b>, just before the league resets.</p>
           <p className="muted small">Everyone votes yes or no on each game. A game with {NO_LIMIT} or more &quot;no&quot; votes is out the next week.</p>
+          <p className="muted small">A league plays <b>{MAX_GAMES} games at most</b>, so it never feels like a chore. If more than {MAX_GAMES} get through, the ones with the most &quot;yes&quot; votes go in; a tie for the last place is the admin&apos;s call.</p>
         </section>
       ) : (
         <>
@@ -50,6 +72,7 @@ export default async function VotePage({ params, searchParams }) {
             <span>
               Vote yes or no on each game, once. <b>Try any game you don&apos;t know before you vote</b>, so the vote is fair.
               {' '}A game with {NO_LIMIT} or more &quot;no&quot; votes is out next week (from {prettyDate(week)}). Voting closes {prettyDate(addDays(week, -1))} at 11:59pm.
+              {' '}<b>{MAX_GAMES} games max:</b> if more get through, the most &quot;yes&quot; votes go in, and a tie for the last place is the admin&apos;s call.
             </span>
           </section>
           <p className="muted small">{left ? `${left} game${left === 1 ? '' : 's'} still to vote on.` : 'You have voted on every game. Thanks!'}</p>
@@ -91,7 +114,7 @@ export default async function VotePage({ params, searchParams }) {
             </select>
             <Submit className="btn">Add to the vote</Submit>
           </form>
-          <p className="muted small">A game put forward joins next week unless {NO_LIMIT} or more people vote no.</p>
+          <p className="muted small">A game put forward joins next week unless {NO_LIMIT} or more people vote no, and as long as it makes the top {MAX_GAMES}.</p>
         </>
       )}
     </>

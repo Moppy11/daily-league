@@ -36,6 +36,8 @@ export default async function Leagues({ searchParams }) {
     [user.id]
   );
 
+  // Ticked to start with: the games you play, up to the 10-game limit.
+  const preset = new Set(options.filter((g) => mine.has(g.id)).slice(0, 10).map((g) => g.id));
   return (
     <>
       <h1>Leagues</h1>
@@ -90,11 +92,11 @@ export default async function Leagues({ searchParams }) {
       <form action={createLeague} className="card stack">
         <label>League name<input name="name" required maxLength={40} placeholder="e.g. Office Dailies" /></label>
         <fieldset>
-          <legend>Games that count</legend>
+          <legend>Games that count <small className="muted">(10 max, so it never feels like a chore)</small></legend>
           <div className="checks">
             {options.map((g) => (
               <label key={g.id} className="check">
-                <input type="checkbox" name="games" value={g.id} defaultChecked={mine.has(g.id)} /> {g.emoji} {g.name}
+                <input type="checkbox" name="games" value={g.id} defaultChecked={preset.has(g.id)} /> {g.emoji} {g.name}
               </label>
             ))}
           </div>

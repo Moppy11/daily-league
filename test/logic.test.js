@@ -315,3 +315,18 @@ test('games vote is open Friday to Sunday, for the coming Monday', async () => {
   assert.equal(openBallotWeek('2026-11-22'), '2026-11-23');    // Sunday
   assert.equal(openBallotWeek('2026-11-23'), null);            // Monday: the vote has closed
 });
+
+test('games vote: 10 games max, most yes votes win, a tie at the cut goes to the admin', async () => {
+  const { voteOutcome, MAX_GAMES } = await import('../lib/voterules.js');
+  assert.equal(MAX_GAMES, 10);
+  const g = (id, yes, no = 0) => ({ game: { id }, yes, no });
+  // 12 games through, clear ranking: the two with the fewest yes votes are out
+  let r = voteOutcome([...Array.from({ length: 10 }, (_, i) => g('a' + i, 5)), g('x', 2), g('y', 1)]);
+  assert.deepEqual([r.inIds.length, r.outIds.sort(), r.tied], [10, ['x', 'y'], []]);
+  // a tie for the last 2 places between 3 games: the admin picks 2
+  r = voteOutcome([...Array.from({ length: 8 }, (_, i) => g('a' + i, 5)), g('t1', 3), g('t2', 3), g('t3', 3), g('z', 1)]);
+  assert.deepEqual([r.inIds.length, r.tied.sort(), r.slots, r.outIds], [8, ['t1', 't2', 't3'], 2, ['z']]);
+  // two "no" votes still rule a game out first, and 10 or fewer left need no ranking
+  r = voteOutcome([g('a', 4, 2), g('b', 1)]);
+  assert.deepEqual([r.inIds, r.outIds], [['b'], ['a']]);
+});

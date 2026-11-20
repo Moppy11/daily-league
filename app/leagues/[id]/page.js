@@ -399,7 +399,7 @@ export default async function LeaguePage({ params, searchParams }) {
             <label>League name<input name="name" defaultValue={league.name} required maxLength={40} /></label>
             <fieldset>
               <legend>Games that count, and how much</legend>
-              <p className="muted small">Changes start tomorrow, so anything already posted today still counts.</p>
+              <p className="muted small">Changes start tomorrow, so anything already posted today still counts. <b>10 games max</b> per league, so it never feels like a chore.</p>
               <div className="checks weights">
                 {gameOptions.map((g) => (
                   <span key={g.id} className="check">
