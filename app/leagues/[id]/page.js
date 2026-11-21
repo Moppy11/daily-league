@@ -200,9 +200,9 @@ export default async function LeaguePage({ params, searchParams }) {
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
                       : <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
                     {view === 'handicap' && (
-                      <td className={r.bonus ? 'minus-cell' : 'muted'} title={formNow[r.user.id] ? `Usually ${Math.round(formNow[r.user.id].lead)} points ahead of last place (average of ${formNow[r.user.id].weeks} week${formNow[r.user.id].weeks === 1 ? '' : 's'})` : 'No finished week yet'}>
+                      <td className={r.bonus ? 'minus-cell' : 'muted'} title={formNow[r.user.id] ? `Averages ${formNow[r.user.id].perDay.toFixed(1)} points a day (${formNow[r.user.id].days} days played in the 4 weeks before Monday)` : 'Not enough days played yet'}>
                         {r.bonus ? `−${-r.bonus}` : '0'}
-                        {formNow[r.user.id] && <small className="muted form-line">avg +{Math.round(formNow[r.user.id].lead)} · {formNow[r.user.id].weeks}w</small>}
+                        {formNow[r.user.id] && <small className="muted form-line">{formNow[r.user.id].perDay.toFixed(1)} a day · {formNow[r.user.id].days}d</small>}
                       </td>
                     )}
                     <td className="pts-cell">{r.total}{r.penalty > 0 && <small className="penalty" title={`${r.penalty} points taken off by the admin`}> −{r.penalty}</small>}</td>
@@ -213,7 +213,7 @@ export default async function LeaguePage({ params, searchParams }) {
           </div>
           <p className="muted small">
             {view !== 'all' ? `Week of ${weekLabel(thisWeek)}. Resets every Monday; top on Sunday night wins the week. ` : ''}
-            {view === 'handicap' && <>⚖️ <b>Handicap table:</b> everyone starts the week behind except whoever is usually last. Your start is minus 75% of your average lead over last place in your last 4 weeks (fewer in a new league), so one good or bad week doesn&apos;t decide it. Updated every Monday. </>}
+            {view === 'handicap' && <>⚖️ <b>Handicap table:</b> everyone starts the week behind except whoever is usually last. Your start is minus 75% of how many more points a week you usually score than them, from your average points per day over the 4 weeks before Monday (2 days played is enough). Updated every Monday. </>}
             {league.handicap_on && view !== 'all' && <>🏆 The <b>{decides === 'handicap' ? 'Handicap' : 'This week'}</b> table decides the weekly winner. </>}
             Each game, each day: 1st {POINTS[0]} pts, then {POINTS.slice(1).join(', ')}, and 1 for playing. Today&apos;s games reset at midnight.
             {' '}Results count from the day you joined. {rules.join(' ')}
@@ -434,14 +434,14 @@ export default async function LeaguePage({ params, searchParams }) {
             </label>
             <fieldset>
               <legend>⚖️ Handicap</legend>
-              <label className="check"><input type="checkbox" name="handicap_on" defaultChecked={league.handicap_on} /> Show a Handicap table: the further ahead of last place you usually finish, the further behind you start the week</label>
+              <label className="check"><input type="checkbox" name="handicap_on" defaultChecked={league.handicap_on} /> Show a Handicap table: the more points a day you usually score, the further behind you start the week</label>
               <label>Weekly winner from
                 <select name="winner_table" defaultValue={league.winner_table}>
                   <option value="scratch">The real table (This week)</option>
                   <option value="handicap">The Handicap table</option>
                 </select>
               </label>
-              <p className="muted small">Starting scores are worked out every Monday: minus 75% of each player&apos;s average lead over last place in their last 4 weeks. To set one yourself, type how many points behind they start (0–500); leave it empty for the automatic one.</p>
+              <p className="muted small">Starting scores are worked out every Monday from each player&apos;s average points per day over the 4 weeks before (minus 75% of the weekly gap to whoever scores least). To set one yourself, type how many points behind they start (0–500); leave it empty for the automatic one.</p>
               <div className="handicap-grid">
                 {members.map((m) => {
                   const o = overrides.find((x) => x.user_id === m.id);

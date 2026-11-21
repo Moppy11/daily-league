@@ -331,21 +331,22 @@ test('games vote: 10 games max, most yes votes win, a tie at the cut goes to the
   assert.deepEqual([r.inIds, r.outIds], [['b'], ['a']]);
 });
 
-test('handicap: starts from the average lead over last place across recent weeks', async () => {
+test('handicap: starts from average points per day over the 4 weeks before', async () => {
   const { weeklyStarts } = await import('../lib/handicap.js');
-  // Cian usually wins big but had one bad week; a single week would get it wrong
-  const history = {
-    '2026-10-26': { cian: 140, b: 90, c: 60 },     // leads: cian 80, b 30, c 0
-    '2026-11-02': { cian: 150, b: 80, c: 70 },     // cian 80, b 10, c 0
-    '2026-11-09': { cian: 60, b: 100, c: 70 },     // a bad week for cian: cian 0, b 40, c 10
+  // three days of a new league: Cian ~18 a day, B ~12, C ~8
+  const days = {
+    '2026-11-11': { cian: 20, b: 12, c: 8 },
+    '2026-11-12': { cian: 16, b: 14, c: 7 },
+    '2026-11-13': { cian: 18, b: 10, c: 9, d: 30 },   // d played once: not enough days to count
   };
-  const { starts, form } = weeklyStarts(history, '2026-11-16');
-  // average leads: cian 53.3, b 26.7, c 3.3 -> minus 75% of (lead - 3.3)
-  assert.deepEqual(starts, { cian: -38, b: -18 });
-  assert.equal(form.cian.weeks, 3);
-  // only the last 4 weeks count, and weeks before `week` only
-  assert.deepEqual(weeklyStarts(history, '2026-11-09').starts, { cian: -60, b: -15 });   // before his bad week: avg lead 80
-  assert.deepEqual(weeklyStarts({ '2026-11-09': { solo: 50 } }, '2026-11-16').starts, {});
+  const { starts, form } = weeklyStarts(days, '2026-11-16');
+  // per day: cian 18, b 12, c 8 -> minus 0.75 × 7 × (avg - 8)
+  assert.deepEqual(starts, { cian: -53, b: -21 });
+  assert.equal(form.c.days, 3);
+  assert.equal(form.d, undefined);
+  // days in or after the week itself never count, and days over 4 weeks old drop out
+  assert.deepEqual(weeklyStarts(days, '2026-11-12').starts, {});
+  assert.deepEqual(weeklyStarts(days, '2026-12-28').starts, {});
 });
 
 test('handicap starting scores count in full in that week\'s table', () => {
