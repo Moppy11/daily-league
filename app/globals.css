@@ -425,3 +425,7 @@ a.play-chip:hover { border-color: var(--accent); }
 .vote-buttons { margin-top: 8px; }
 .vote-out { color: var(--err); }
 .tie .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0; }
+
+/* Handicap */
+.handicap-grid { display: grid; gap: 6px; margin-top: 6px; }
+.handicap-grid input { width: 80px; }

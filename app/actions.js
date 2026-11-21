@@ -8,7 +8,7 @@ import { emailEnabled, validEmail, sendEmail, siteUrl, escapeHtml } from '@/lib/
 import { q, q1 } from '@/lib/db';
 import { createSession, destroySession, requireUser, userToday, gamesByIds, canSee } from '@/lib/auth';
 import { parseManual, expectedPuzzle, puzzleDate, detectGame } from '@/lib/games';
-import { addDays, todayIn, prettyDate } from '@/lib/dates';
+import { addDays, todayIn, prettyDate, weekStart } from '@/lib/dates';
 import { notify } from '@/lib/notify';
 import { scheduleLeagueGames, NOT_REMOVED } from '@/lib/league';
 import { sendPush } from '@/lib/push';
@@ -505,9 +505,22 @@ export async function setLeagueGames(fd) {
   if (!Object.keys(games).length) fail(path, 'A league needs at least one game.');
   if (Object.keys(games).length > MAX_GAMES) fail(path, `A league can have at most ${MAX_GAMES} games, so it never feels like a chore. Untick ${Object.keys(games).length - MAX_GAMES}.`);
   const cap = Number(fd.get('daily_cap'));
-  await q('update leagues set name = $1, is_public = $2, drop_worst = $3, daily_cap = $4 where id = $5', [
+  await q('update leagues set name = $1, is_public = $2, drop_worst = $3, daily_cap = $4, handicap_on = $6, winner_table = $7 where id = $5', [
     name, fd.get('is_public') === 'on', fd.get('drop_worst') === 'on', cap >= 1 && cap <= 10 ? cap : null, id,
+    fd.get('handicap_on') === 'on', str(fd, 'winner_table') === 'handicap' ? 'handicap' : 'scratch',
   ]);
+  // Handicap overrides: a number sets that player's weekly head start from this week on; empty goes back to automatic.
+  const week = weekStart(await userToday());
+  const members = await q('select user_id from league_members where league_id = $1', [id]);
+  for (const { user_id } of members) {
+    const raw = str(fd, `hc_${user_id}`);
+    if (raw === '') { await q('delete from league_handicaps where league_id = $1 and user_id = $2', [id, user_id]); continue; }
+    const v = Math.round(Number(raw));
+    if (!Number.isFinite(v) || v < 0 || v > 100) fail(path, 'A head start is 0 to 100 points a week.');
+    await q(`insert into league_handicaps (league_id, user_id, weekly, from_week) values ($1, $2, $3, $4)
+             on conflict (league_id, user_id) do update set weekly = $3,
+               from_week = case when league_handicaps.weekly = $3 then league_handicaps.from_week else $4 end`, [id, user_id, v, week]);
+  }
   const weights = {};
   for (const gid of Object.keys(games)) { const w = Number(fd.get('weight_' + gid)); weights[gid] = [1, 2, 3].includes(w) ? w : 1; }
   const { added, removed } = await scheduleLeagueGames(id, Object.keys(games), weights, await userToday());

@@ -151,7 +151,7 @@ export default async function Profile({ params, searchParams }) {
     const l = await loadLeague(league_id);
     if (!l) continue;
     myLeagues.push(l);
-    const won = weeklyWinners(l.scores, l.games, l.members, weekStart(today), l.opts.week).filter((w) => w.winners.some((u) => u.id === person.id)).length;
+    const won = weeklyWinners(l.scores, l.games, l.members, weekStart(today), l.opts.win).filter((w) => w.winners.some((u) => u.id === person.id)).length;
     if (won) weekWins.push({ name: l.league.name, won });
   }
   const totalWeekWins = weekWins.reduce((a, w) => a + w.won, 0);

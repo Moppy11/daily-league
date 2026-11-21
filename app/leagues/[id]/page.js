@@ -21,7 +21,7 @@ export default async function LeaguePage({ params, searchParams }) {
   const user = await requireUser(`/leagues/${id}`);
   const data = /^\d+$/.test(id) ? await loadLeague(Number(id), await userToday()) : null;
   if (!data) notFound();
-  const { league, members, games, liveGames, plan, scores, weights, opts, penalties } = data;
+  const { league, members, games, liveGames, plan, scores, weights, opts, penalties, thisWeekHandicap, autoNow, overrides } = data;
   if (!members.some((m) => m.id === user.id)) {
     return <section className="card narrow"><h1>{league.name}</h1><p>You&apos;re not a member of this league. Ask a member for the invite link.</p></section>;
   }
@@ -29,7 +29,7 @@ export default async function LeaguePage({ params, searchParams }) {
   const today = await userToday();
   const thisWeek = weekStart(today);
   await ensureRecap(data, thisWeek);
-  const view = sp.view === 'all' ? 'all' : 'week';
+  const view = sp.view === 'all' ? 'all' : sp.view === 'handicap' && data.league.handicap_on ? 'handicap' : 'week';
   const date = isDate(sp.date) && sp.date <= today ? sp.date : today;
   const gameList = Object.values(liveGames).sort((a, b) => a.name.localeCompare(b.name));
   // Changes the admin made today that take effect tomorrow.
@@ -50,13 +50,14 @@ export default async function LeaguePage({ params, searchParams }) {
 
   // ---- The league table ----
   const inView = view === 'all' ? scores : scores.filter((s) => s.play_date >= thisWeek);
-  const rule = view === 'all' ? opts.all : opts.week;
+  const rule = view === 'all' ? opts.all : view === 'handicap' ? opts.hcap : opts.week;
+  const decides = (league.handicap_on && league.winner_table === 'handicap') ? 'handicap' : 'week';
   const table = withPositions(standings(inView, games, members, rule));
   // Where everyone stood before today's results, for the up and down arrows.
   const before = Object.fromEntries(withPositions(standings(inView.filter((s) => s.play_date < today), games, members, rule)).map((r) => [r.user.id, r.pos]));
   const anyToday = inView.some((s) => s.play_date === today);
   const todayPts = Object.fromEntries(standings(scores.filter((s) => s.play_date === today), games, members, opts.all).map((r) => [r.user.id, r.played ? r.total : null]));
-  const champions = weeklyWinners(scores, games, members, thisWeek, opts.week);
+  const champions = weeklyWinners(scores, games, members, thisWeek, opts.win);
   const weekWins = weeklyWinCounts(champions);
   const records = leagueRecords(scores, games, members, thisWeek, opts);
   // Last week's recap: open at the top until this player closes it, then folded away under the table.
@@ -164,6 +165,7 @@ export default async function LeaguePage({ params, searchParams }) {
             <h2>League table</h2>
             <div className="seg" role="tablist" aria-label="Period">
               <Link href={href({ view: 'week' })} className={view === 'week' ? 'on' : ''} aria-current={view === 'week' ? 'page' : undefined}>This week</Link>
+              {league.handicap_on && <Link href={href({ view: 'handicap' })} className={view === 'handicap' ? 'on' : ''} aria-current={view === 'handicap' ? 'page' : undefined}>Handicap</Link>}
               <Link href={href({ view: 'all' })} className={view === 'all' ? 'on' : ''} aria-current={view === 'all' ? 'page' : undefined}>All time</Link>
             </div>
           </div>
@@ -176,6 +178,7 @@ export default async function LeaguePage({ params, searchParams }) {
                   <th title="Results posted">Played</th>
                   <th title="Games won (best result of the day)">Wins</th>
                   {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : <th title="Points earned so far today">Today</th>}
+                  {view === 'handicap' && <th title="Head start earned so far this week (a seventh for each day played)">Head start</th>}
                   <th title="Total points">Points</th>
                 </tr>
               </thead>
@@ -196,6 +199,11 @@ export default async function LeaguePage({ params, searchParams }) {
                     {view === 'all'
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
                       : <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
+                    {view === 'handicap' && (
+                      <td className={r.bonus ? 'plus-cell' : 'muted'} title={thisWeekHandicap[r.user.id] ? `+${thisWeekHandicap[r.user.id]} for the week, earned a seventh at a time on each day played` : 'No head start this week'}>
+                        {r.bonus ? `+${r.bonus}` : '–'}{thisWeekHandicap[r.user.id] ? <small className="muted"> /{thisWeekHandicap[r.user.id]}</small> : null}
+                      </td>
+                    )}
                     <td className="pts-cell">{r.total}{r.penalty > 0 && <small className="penalty" title={`${r.penalty} points taken off by the admin`}> −{r.penalty}</small>}</td>
                   </tr>
                 ))}
@@ -203,7 +211,9 @@ export default async function LeaguePage({ params, searchParams }) {
             </table>
           </div>
           <p className="muted small">
-            {view === 'week' ? `Week of ${weekLabel(thisWeek)}. Resets every Monday; top on Sunday night wins the week. ` : ''}
+            {view !== 'all' ? `Week of ${weekLabel(thisWeek)}. Resets every Monday; top on Sunday night wins the week. ` : ''}
+            {view === 'handicap' && <>⚖️ <b>Handicap table:</b> players who have been behind get a head start, worked out every Monday from the last 4 weeks (75% of their gap to the league&apos;s average), earned a seventh at a time on each day they play. Nobody loses points. </>}
+            {league.handicap_on && view !== 'all' && <>🏆 The <b>{decides === 'handicap' ? 'Handicap' : 'This week'}</b> table decides the weekly winner. </>}
             Each game, each day: 1st {POINTS[0]} pts, then {POINTS.slice(1).join(', ')}, and 1 for playing. Today&apos;s games reset at midnight.
             {' '}Results count from the day you joined. {rules.join(' ')}
           </p>
@@ -421,6 +431,28 @@ export default async function LeaguePage({ params, searchParams }) {
                 {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>Each player&apos;s best {n}</option>)}
               </select>
             </label>
+            <fieldset>
+              <legend>⚖️ Handicap</legend>
+              <label className="check"><input type="checkbox" name="handicap_on" defaultChecked={league.handicap_on} /> Show a Handicap table: players who have been behind get a head start</label>
+              <label>Weekly winner from
+                <select name="winner_table" defaultValue={league.winner_table}>
+                  <option value="scratch">The real table (This week)</option>
+                  <option value="handicap">The Handicap table</option>
+                </select>
+              </label>
+              <p className="muted small">Head starts are worked out every Monday. To set a player&apos;s yourself, type a number (0–100 points a week); leave it empty for the automatic one.</p>
+              <div className="handicap-grid">
+                {members.map((m) => {
+                  const o = overrides.find((x) => x.user_id === m.id);
+                  return (
+                    <label key={m.id} className="row">
+                      <span className="grow">{m.display_name} <small className="muted">auto +{autoNow[m.id] ?? 0}</small></span>
+                      <input name={`hc_${m.id}`} type="number" min="0" max="100" inputMode="numeric" defaultValue={o ? o.weekly : ''} placeholder="auto" aria-label={`${m.display_name}'s weekly head start`} />
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
             <label className="check"><input type="checkbox" name="drop_worst" defaultChecked={league.drop_worst} /> Comeback rule: drop each player&apos;s lowest day of the week (needs all seven days played)</label>
             <label className="check"><input type="checkbox" name="is_public" defaultChecked={league.is_public} /> Public league: anyone can find and join it</label>
             <Submit>Save settings</Submit>
