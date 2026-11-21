@@ -177,7 +177,7 @@ export default async function LeaguePage({ params, searchParams }) {
                   <th className="left">Player</th>
                   <th title="Results posted">Played</th>
                   <th title="Games won (best result of the day)">Wins</th>
-                  {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : <th title="Points earned so far today">Today</th>}
+                  {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : view === 'week' ? <th title="Points earned so far today">Today</th> : null}
                   {view === 'handicap' && <th title="Where this player started the week: 75% of how far ahead of last place they finished last week">Start</th>}
                   <th title="Total points">Points</th>
                 </tr>
@@ -198,7 +198,7 @@ export default async function LeaguePage({ params, searchParams }) {
                     <td>{r.wins}</td>
                     {view === 'all'
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
-                      : <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
+                      : view === 'week' ? <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td> : null}
                     {view === 'handicap' && (
                       <td className={r.bonus ? 'minus-cell' : 'muted'} title={formNow[r.user.id] ? `Averages ${formNow[r.user.id].perDay.toFixed(1)} points a day (${formNow[r.user.id].days} days played in the 4 weeks before Monday)` : 'Not enough days played yet'}>
                         {r.bonus ? `−${-r.bonus}` : '0'}
