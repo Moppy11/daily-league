@@ -331,11 +331,21 @@ test('games vote: 10 games max, most yes votes win, a tie at the cut goes to the
   assert.deepEqual([r.inIds, r.outIds], [['b'], ['a']]);
 });
 
-test('handicap: everyone starts behind last place by 75% of last week\'s lead', async () => {
+test('handicap: starts from the average lead over last place across recent weeks', async () => {
   const { weeklyStarts } = await import('../lib/handicap.js');
-  // Daily Poop, made-up week: Cian 140, Aoife 95, Sean 80, Niamh 60 (last)
-  assert.deepEqual(weeklyStarts({ cian: 140, aoife: 95, sean: 80, niamh: 60 }), { cian: -60, aoife: -26, sean: -15 });
-  assert.deepEqual(weeklyStarts({ solo: 50 }), {});                     // nobody to compare with
+  // Cian usually wins big but had one bad week; a single week would get it wrong
+  const history = {
+    '2026-10-26': { cian: 140, b: 90, c: 60 },     // leads: cian 80, b 30, c 0
+    '2026-11-02': { cian: 150, b: 80, c: 70 },     // cian 80, b 10, c 0
+    '2026-11-09': { cian: 60, b: 100, c: 70 },     // a bad week for cian: cian 0, b 40, c 10
+  };
+  const { starts, form } = weeklyStarts(history, '2026-11-16');
+  // average leads: cian 53.3, b 26.7, c 3.3 -> minus 75% of (lead - 3.3)
+  assert.deepEqual(starts, { cian: -38, b: -18 });
+  assert.equal(form.cian.weeks, 3);
+  // only the last 4 weeks count, and weeks before `week` only
+  assert.deepEqual(weeklyStarts(history, '2026-11-09').starts, { cian: -60, b: -15 });   // before his bad week: avg lead 80
+  assert.deepEqual(weeklyStarts({ '2026-11-09': { solo: 50 } }, '2026-11-16').starts, {});
 });
 
 test('handicap starting scores count in full in that week\'s table', () => {
