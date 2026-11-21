@@ -362,3 +362,13 @@ test('handicap starting scores count in full in that week\'s table', () => {
   assert.equal(empty.find((r) => r.user.id === 1).total, -12);
   assert.equal(standings([], games, members, { bonus }).find((r) => r.user.id === 1).total, 0);
 });
+
+test('a handicap week still has a winner when every total is 0 or below', async () => {
+  const { weeklyWinners } = await import('../lib/records.js');
+  const members = [{ id: 1, display_name: 'A' }, { id: 2, display_name: 'B' }];
+  const games = { wordle: builtin('wordle') };
+  const scores = [{ user_id: 1, game_id: 'wordle', play_date: '2026-11-16', score: 3 }, { user_id: 2, game_id: 'wordle', play_date: '2026-11-16', score: 4 }];
+  const bonus = [{ user_id: 1, week: '2026-11-16', weekly: -30 }, { user_id: 2, week: '2026-11-16', weekly: -20 }];
+  const w = weeklyWinners(scores, games, members, '2026-11-23', { bonus });
+  assert.deepEqual(w.map((x) => [x.total, x.winners.map((u) => u.id)]), [[-13, [2]]]);   // A: 10-30, B: 7-20
+});
