@@ -331,22 +331,23 @@ test('games vote: 10 games max, most yes votes win, a tie at the cut goes to the
   assert.deepEqual([r.inIds, r.outIds], [['b'], ['a']]);
 });
 
-test('handicap: 75% of the gap to the league form, only for players behind', async () => {
-  const { weeklyHandicaps } = await import('../lib/handicap.js');
-  const totals = { '2026-11-02': { 1: 120, 2: 80, 3: 40 }, '2026-11-09': { 1: 100, 2: 80, 3: 60 } };
-  // form: 1 = 110, 2 = 80, 3 = 50; league = 80. Player 3: 0.75 × 30 = 22.5 -> 23
-  assert.deepEqual(weeklyHandicaps(totals, '2026-11-16'), { 3: 23 });
-  // a new league with no finished week: judged on the latest week so far
-  assert.deepEqual(weeklyHandicaps({}, '2026-11-16', 0.75, { 1: 70, 2: 30 }), { 2: 15 });
-  // a new player in an old league uses the latest week too (and lowers the league form to 65); finished weeks win
-  assert.deepEqual(weeklyHandicaps(totals, '2026-11-16', 0.75, { 4: 20, 1: 999 }), { 3: 11, 4: 34 });
+test('handicap: everyone starts behind last place by 75% of last week\'s lead', async () => {
+  const { weeklyStarts } = await import('../lib/handicap.js');
+  // Daily Poop, made-up week: Cian 140, Aoife 95, Sean 80, Niamh 60 (last)
+  assert.deepEqual(weeklyStarts({ cian: 140, aoife: 95, sean: 80, niamh: 60 }), { cian: -60, aoife: -26, sean: -15 });
+  assert.deepEqual(weeklyStarts({ solo: 50 }), {});                     // nobody to compare with
 });
 
-test('handicap head starts are earned a seventh at a time on days played', () => {
+test('handicap starting scores count in full in that week\'s table', () => {
   const members = [{ id: 1, display_name: 'A' }, { id: 2, display_name: 'B' }];
   const games = { wordle: builtin('wordle') };
   const s = (user_id, play_date, score) => ({ user_id, game_id: 'wordle', play_date, score });
-  const scores = [s(1, '2026-11-16', 3), s(2, '2026-11-16', 5), s(1, '2026-11-17', 3), s(2, '2026-11-17', 5)];
-  const t = standings(scores, games, members, { bonus: [{ user_id: 2, week: '2026-11-16', weekly: 35 }] });
-  assert.deepEqual(t.map((r) => [r.user.id, r.total, r.bonus]), [[2, 24, 10], [1, 20, 0]]);   // 14 + 2 days × 35/7 overtakes 20
+  const scores = [s(1, '2026-11-16', 3), s(2, '2026-11-16', 5)];
+  const bonus = [{ user_id: 1, week: '2026-11-16', weekly: -12 }];
+  const t = standings(scores, games, members, { bonus });
+  assert.deepEqual(t.map((r) => [r.user.id, r.total, r.bonus]), [[2, 7, 0], [1, -2, -12]]);
+  // Monday morning, before anyone posts: the start shows when the table is for that week
+  const empty = standings([], games, members, { bonus, forWeek: '2026-11-16' });
+  assert.equal(empty.find((r) => r.user.id === 1).total, -12);
+  assert.equal(standings([], games, members, { bonus }).find((r) => r.user.id === 1).total, 0);
 });

@@ -509,14 +509,14 @@ export async function setLeagueGames(fd) {
     name, fd.get('is_public') === 'on', fd.get('drop_worst') === 'on', cap >= 1 && cap <= 10 ? cap : null, id,
     fd.get('handicap_on') === 'on', str(fd, 'winner_table') === 'handicap' ? 'handicap' : 'scratch',
   ]);
-  // Handicap overrides: a number sets that player's weekly head start from this week on; empty goes back to automatic.
+  // Handicap overrides: a number sets how far behind that player starts each week, from this week on; empty = automatic.
   const week = weekStart(await userToday());
   const members = await q('select user_id from league_members where league_id = $1', [id]);
   for (const { user_id } of members) {
     const raw = str(fd, `hc_${user_id}`);
     if (raw === '') { await q('delete from league_handicaps where league_id = $1 and user_id = $2', [id, user_id]); continue; }
     const v = Math.round(Number(raw));
-    if (!Number.isFinite(v) || v < 0 || v > 100) fail(path, 'A head start is 0 to 100 points a week.');
+    if (!Number.isFinite(v) || v < 0 || v > 500) fail(path, 'A starting score is 0 to 500 points behind.');
     await q(`insert into league_handicaps (league_id, user_id, weekly, from_week) values ($1, $2, $3, $4)
              on conflict (league_id, user_id) do update set weekly = $3,
                from_week = case when league_handicaps.weekly = $3 then league_handicaps.from_week else $4 end`, [id, user_id, v, week]);

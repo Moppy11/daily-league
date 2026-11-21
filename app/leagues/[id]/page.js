@@ -50,7 +50,7 @@ export default async function LeaguePage({ params, searchParams }) {
 
   // ---- The league table ----
   const inView = view === 'all' ? scores : scores.filter((s) => s.play_date >= thisWeek);
-  const rule = view === 'all' ? opts.all : view === 'handicap' ? opts.hcap : opts.week;
+  const rule = view === 'all' ? opts.all : view === 'handicap' ? opts.hcapNow : opts.week;
   const decides = (league.handicap_on && league.winner_table === 'handicap') ? 'handicap' : 'week';
   const table = withPositions(standings(inView, games, members, rule));
   // Where everyone stood before today's results, for the up and down arrows.
@@ -178,7 +178,7 @@ export default async function LeaguePage({ params, searchParams }) {
                   <th title="Results posted">Played</th>
                   <th title="Games won (best result of the day)">Wins</th>
                   {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : <th title="Points earned so far today">Today</th>}
-                  {view === 'handicap' && <th title="Head start earned so far this week (a seventh for each day played)">Head start</th>}
+                  {view === 'handicap' && <th title="Where this player started the week: 75% of how far ahead of last place they finished last week">Start</th>}
                   <th title="Total points">Points</th>
                 </tr>
               </thead>
@@ -200,8 +200,8 @@ export default async function LeaguePage({ params, searchParams }) {
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
                       : <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td>}
                     {view === 'handicap' && (
-                      <td className={r.bonus ? 'plus-cell' : 'muted'} title={thisWeekHandicap[r.user.id] ? `+${thisWeekHandicap[r.user.id]} for the week, earned a seventh at a time on each day played` : 'No head start this week'}>
-                        {r.bonus ? `+${r.bonus}` : '–'}{thisWeekHandicap[r.user.id] ? <small className="muted"> /{thisWeekHandicap[r.user.id]}</small> : null}
+                      <td className={r.bonus ? 'minus-cell' : 'muted'} title={r.bonus ? `Started the week on ${r.bonus}` : 'Started the week on 0'}>
+                        {r.bonus ? `−${-r.bonus}` : '0'}
                       </td>
                     )}
                     <td className="pts-cell">{r.total}{r.penalty > 0 && <small className="penalty" title={`${r.penalty} points taken off by the admin`}> −{r.penalty}</small>}</td>
@@ -212,7 +212,7 @@ export default async function LeaguePage({ params, searchParams }) {
           </div>
           <p className="muted small">
             {view !== 'all' ? `Week of ${weekLabel(thisWeek)}. Resets every Monday; top on Sunday night wins the week. ` : ''}
-            {view === 'handicap' && <>⚖️ <b>Handicap table:</b> players who have been behind get a head start, worked out every Monday from the last 4 weeks (75% of their gap to the league&apos;s average), earned a seventh at a time on each day they play. Nobody loses points. </>}
+            {view === 'handicap' && <>⚖️ <b>Handicap table:</b> everyone starts the week behind except whoever came last. Your start is minus 75% of how far ahead of last place you finished last week. </>}
             {league.handicap_on && view !== 'all' && <>🏆 The <b>{decides === 'handicap' ? 'Handicap' : 'This week'}</b> table decides the weekly winner. </>}
             Each game, each day: 1st {POINTS[0]} pts, then {POINTS.slice(1).join(', ')}, and 1 for playing. Today&apos;s games reset at midnight.
             {' '}Results count from the day you joined. {rules.join(' ')}
@@ -433,21 +433,22 @@ export default async function LeaguePage({ params, searchParams }) {
             </label>
             <fieldset>
               <legend>⚖️ Handicap</legend>
-              <label className="check"><input type="checkbox" name="handicap_on" defaultChecked={league.handicap_on} /> Show a Handicap table: players who have been behind get a head start</label>
+              <label className="check"><input type="checkbox" name="handicap_on" defaultChecked={league.handicap_on} /> Show a Handicap table: the further ahead you finished last week, the further behind you start this week</label>
               <label>Weekly winner from
                 <select name="winner_table" defaultValue={league.winner_table}>
                   <option value="scratch">The real table (This week)</option>
                   <option value="handicap">The Handicap table</option>
                 </select>
               </label>
-              <p className="muted small">Head starts are worked out every Monday. To set a player&apos;s yourself, type a number (0–100 points a week); leave it empty for the automatic one.</p>
+              <p className="muted small">Starting scores are worked out every Monday: minus 75% of each player&apos;s lead over last place last week. To set one yourself, type how many points behind they start (0–500); leave it empty for the automatic one.</p>
               <div className="handicap-grid">
                 {members.map((m) => {
                   const o = overrides.find((x) => x.user_id === m.id);
                   return (
                     <label key={m.id} className="row">
-                      <span className="grow">{m.display_name} <small className="muted">auto +{autoNow[m.id] ?? 0}</small></span>
-                      <input name={`hc_${m.id}`} type="number" min="0" max="100" inputMode="numeric" defaultValue={o ? o.weekly : ''} placeholder="auto" aria-label={`${m.display_name}'s weekly head start`} />
+                      <span className="grow">{m.display_name} <small className="muted">auto {autoNow[m.id] ? `−${-autoNow[m.id]}` : '0'}</small></span>
+                      <span className="muted">−</span>
+                      <input name={`hc_${m.id}`} type="number" min="0" max="500" inputMode="numeric" defaultValue={o ? o.weekly : ''} placeholder="auto" aria-label={`Points ${m.display_name} starts behind`} />
                     </label>
                   );
                 })}

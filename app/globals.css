@@ -429,3 +429,4 @@ a.play-chip:hover { border-color: var(--accent); }
 /* Handicap */
 .handicap-grid { display: grid; gap: 6px; margin-top: 6px; }
 .handicap-grid input { width: 80px; }
+.minus-cell { color: var(--err); font-weight: 600; }
