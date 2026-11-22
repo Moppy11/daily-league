@@ -169,6 +169,36 @@ export default async function LeaguePage({ params, searchParams }) {
               <Link href={href({ view: 'all' })} className={view === 'all' ? 'on' : ''} aria-current={view === 'all' ? 'page' : undefined}>All time</Link>
             </div>
           </div>
+          {view === 'handicap' && (() => {
+            // "How it works", with this player's own numbers.
+            const ids = Object.keys(formNow);
+            const base = ids.length ? Math.min(...ids.map((i) => formNow[i].perDay)) : null;
+            const mine = formNow[user.id], myOverride = overrides.find((o) => o.user_id === user.id);
+            const myStart = thisWeekHandicap[user.id] ?? 0, shown = myStart < 0 ? `−${-myStart}` : '0';
+            return (
+              <details className="card handicap-help" open>
+                <summary>⚖️ How the handicap works</summary>
+                <p>So every week is winnable, not just for the best player. The better you usually score, the further behind you start.</p>
+                <ol>
+                  <li>Every Monday, each player&apos;s <b>average points per day</b> is worked out from the 4 weeks before (2 days played is enough).</li>
+                  <li>Whoever averages the fewest points starts the week on <b>0</b>.</li>
+                  <li>Everyone else starts <b>behind</b>: 75% of the extra points they&apos;d usually score in a week compared with them.</li>
+                  <li>Then the week plays out as normal: points add on top of your start. The <b>Start</b> column shows where each player began.</li>
+                </ol>
+                <p className="handicap-me">
+                  {myOverride ? <>The admin set your start this week to <b>{shown}</b>.</>
+                    : mine && base !== null ? (myStart < 0
+                      ? <>You average <b>{mine.perDay.toFixed(1)}</b> points a day and the lowest average is <b>{base.toFixed(1)}</b>, so you started on <b>{shown}</b> ({(mine.perDay - base).toFixed(1)} more a day × 7 days × 75%).</>
+                      : <>You have the lowest average ({mine.perDay.toFixed(1)} a day), so you started on <b>0</b>. Everyone else is chasing you!</>)
+                    : <>You don&apos;t have 2 days of results from before this week yet, so you started on <b>0</b>.</>}
+                </p>
+                <p className="muted small">
+                  {decides === 'handicap' ? '🏆 This table decides who wins the week.' : '🏆 The real table (This week) decides who wins the week; this one is for bragging rights.'}
+                  {' '}The admin can set anyone&apos;s start by hand in League settings.
+                </p>
+              </details>
+            );
+          })()}
           <div className="card table-wrap league-table">
             <table>
               <thead>
@@ -213,7 +243,7 @@ export default async function LeaguePage({ params, searchParams }) {
           </div>
           <p className="muted small">
             {view !== 'all' ? `Week of ${weekLabel(thisWeek)}. Resets every Monday; top on Sunday night wins the week. ` : ''}
-            {view === 'handicap' && <>⚖️ <b>Handicap table:</b> everyone starts the week behind except whoever is usually last. Your start is minus 75% of how many more points a week you usually score than them, from your average points per day over the 4 weeks before Monday (2 days played is enough). Updated every Monday. </>}
+            {view === 'handicap' && <>⚖️ Starts are set every Monday (see How the handicap works above). </>}
             {league.handicap_on && view !== 'all' && <>🏆 The <b>{decides === 'handicap' ? 'Handicap' : 'This week'}</b> table decides the weekly winner. </>}
             Each game, each day: 1st {POINTS[0]} pts, then {POINTS.slice(1).join(', ')}, and 1 for playing. Today&apos;s games reset at midnight.
             {' '}Results count from the day you joined. {rules.join(' ')}
