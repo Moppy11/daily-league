@@ -14,6 +14,7 @@ import { inviteFriend, leaveLeague, setLeagueGames, nudge, manageMember, querySc
 import { Flash, Medal } from '../../ui';
 import CopyLink from '../../CopyLink';
 import Submit from '../../Submit';
+import ProofLink from '../../ProofLink';
 
 export default async function LeaguePage({ params, searchParams }) {
   const { id } = await params;
@@ -291,7 +292,7 @@ export default async function LeaguePage({ params, searchParams }) {
                               {s.manual && <p className="small">{s.pasted ? '✍️ Edited after pasting, so it can\'t be verified.' : '✍️ Typed by hand, so it can\'t be verified.'}</p>}
                               {f && <p className="small queried">Queried by {f.n} player{f.n === 1 ? '' : 's'}.</p>}
                               {pastes[s.id] ? <pre>{pastes[s.id]}</pre> : <p className="muted small">Nothing was pasted for this result.</p>}
-                              {proofs.has(s.id) && <p className="small"><a href={`/proof/${s.id}`} target="_blank" rel="noreferrer">📷 See screenshot</a></p>}
+                              {proofs.has(s.id) && <p className="small"><ProofLink scoreId={s.id} className="">📷 See screenshot</ProofLink></p>}
                               <form className="row">
                                 <input type="hidden" name="league" value={league.id} />
                                 <input type="hidden" name="score" value={s.id} />

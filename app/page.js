@@ -10,6 +10,7 @@ import { standings, withPositions } from '@/lib/points';
 import { submitScore, respondInvite } from './actions';
 import { Flash, Medal } from './ui';
 import ProofUpload from './ProofUpload';
+import ProofLink from './ProofLink';
 import PasteBox from './PasteBox';
 import Submit from './Submit';
 import WeeklyRecap from './WeeklyRecap';
@@ -118,7 +119,7 @@ export default async function Home({ searchParams }) {
                   : g.url && <a className="btn small" href={g.url} target="_blank" rel="noreferrer">Play ↗</a>}
               </div>
               {s && (s.has_proof
-                ? <a className="link" href={`/proof/${s.id}`} target="_blank" rel="noreferrer">📷 Screenshot attached</a>
+                ? <ProofLink scoreId={s.id}>📷 Screenshot attached</ProofLink>
                 : <ProofUpload scoreId={s.id} />)}
               {!s && (
                 <form action={submitScore} className="stack">
