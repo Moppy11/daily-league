@@ -332,12 +332,41 @@ export async function castVote(fd) {
   if (!week) fail(path, 'Voting is open from Friday until Sunday at 11:59pm.');
   if (!(await ballot(id, week)).some((i) => i.game.id === gameId)) fail(path, 'That game is not on this week\'s ballot.');
   if (vote !== 'yes' && vote !== 'no') fail(path, 'Vote yes or no.');
-  const added = await q(
-    'insert into game_votes (league_id, week, game_id, user_id, vote) values ($1, $2, $3, $4, $5) on conflict do nothing returning 1',
+  // A vote can be changed any time until voting closes.
+  await q(
+    `insert into game_votes (league_id, week, game_id, user_id, vote) values ($1, $2, $3, $4, $5)
+     on conflict (league_id, week, game_id, user_id) do update set vote = excluded.vote, created_at = now()`,
     [id, week, gameId, user.id, vote === 'yes']);
-  if (!added.length) fail(path, 'You have already voted on that game.');
   revalidatePath('/', 'layout');
   ok(path);
+}
+
+// Admin: put a game in or out whatever the votes say, or hand it back to the vote.
+export async function overrideVote(fd) {
+  const user = await requireUser();
+  const id = Number(fd.get('league')), gameId = str(fd, 'game'), decision = str(fd, 'decision');
+  const path = `/leagues/${id}/vote`;
+  const league = await membership(id, user.id);
+  if (!league || league.owner_id !== user.id) fail(path, 'Only the league admin can override the vote.');
+  const week = openBallotWeek(await userToday());
+  if (!week) fail(path, 'The vote is open from Friday until Sunday at 11:59pm.');
+  const items = await ballot(id, week);
+  const item = items.find((i) => i.game.id === gameId);
+  if (!item) fail(path, 'That game is not on this week\'s ballot.');
+  if (decision === 'in' && item.decision !== 'in' && items.filter((i) => i.decision === 'in').length >= MAX_GAMES) {
+    fail(path, `${MAX_GAMES} games are already set to always in, the most a league can have.`);
+  }
+  if (decision === 'in' || decision === 'out') {
+    await q(`insert into vote_overrides (league_id, week, game_id, decision) values ($1, $2, $3, $4)
+             on conflict (league_id, week, game_id) do update set decision = excluded.decision`, [id, week, gameId, decision]);
+    const others = await q('select user_id from league_members where league_id = $1 and user_id <> $2', [id, user.id]);
+    await notify(others.map((r) => r.user_id), { kind: 'request', link: path,
+      body: `${league.name}: the admin set ${item.game.name} to ${decision === 'in' ? 'always in' : 'always out'} for next week, whatever the vote says.` });
+  } else {
+    await q('delete from vote_overrides where league_id = $1 and week = $2 and game_id = $3', [id, week, gameId]);
+  }
+  revalidatePath('/', 'layout');
+  ok(path, decision === 'in' ? `${item.game.name} is in next week.` : decision === 'out' ? `${item.game.name} is out next week.` : `${item.game.name} is back to the vote.`);
 }
 
 export async function nominateGame(fd) {

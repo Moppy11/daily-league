@@ -372,3 +372,18 @@ test('a handicap week still has a winner when every total is 0 or below', async 
   const w = weeklyWinners(scores, games, members, '2026-11-23', { bonus });
   assert.deepEqual(w.map((x) => [x.total, x.winners.map((u) => u.id)]), [[-13, [2]]]);   // A: 10-30, B: 7-20
 });
+
+test('games vote: the admin can put any game in or out whatever the votes say', async () => {
+  const { voteOutcome } = await import('../lib/voterules.js');
+  const g = (id, yes, no = 0, decision = null) => ({ game: { id }, yes, no, decision });
+  const r = voteOutcome([g('loved', 3, 0, 'out'), g('hated', 0, 3, 'in'), g('normal', 2, 0), g('voted-off', 0, 2)]);
+  assert.deepEqual([r.inIds.sort(), r.outIds.sort()], [['hated', 'normal'], ['loved', 'voted-off']]);
+  // admin "in" games take places first; the votes fill what's left of the 10
+  const many = Array.from({ length: 10 }, (_, i) => g('v' + i, 5));
+  const r2 = voteOutcome([...many, g('pick', 0, 0, 'in')]);
+  assert.deepEqual(r2.inIds, ['pick']);                 // the admin's pick is in first
+  assert.equal(r2.tied.length, 10);                     // nine places left, ten games level on 5 yes: the admin picks
+  assert.equal(r2.slots, 9);
+  const r3 = voteOutcome([...many.slice(0, 8), g('low', 1), g('pick', 0, 0, 'in')]);
+  assert.deepEqual([r3.inIds.length, r3.tied], [10, []]);
+});
