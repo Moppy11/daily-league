@@ -15,6 +15,7 @@ import { Flash, Medal } from '../../ui';
 import CopyLink from '../../CopyLink';
 import Submit from '../../Submit';
 import ProofLink from '../../ProofLink';
+import OncePopup from '../../OncePopup';
 
 export default async function LeaguePage({ params, searchParams }) {
   const { id } = await params;
@@ -67,6 +68,12 @@ export default async function LeaguePage({ params, searchParams }) {
   const recapOpen = recap && (members.find((m) => m.id === user.id)?.joined_on ?? today) <= addDays(lastWeek, 6)
     && !(await q1('select 1 from recap_seen where user_id = $1 and league_id = $2 and week = $3', [user.id, league.id, lastWeek]));
   const broken = await recentRecords(league.id, user.id);
+  // From Monday 23 Nov (when the handicaps start), the first visit to each league tells the player their handicap,
+  // once they've seen the announcement.
+  const HANDICAP_POPUP_FROM = process.env.HANDICAP_POPUP_FROM || '2026-11-23';
+  const hcapPopup = league.handicap_on && today >= HANDICAP_POPUP_FROM
+    && !!(await q1(`select 1 from user_flags where user_id = $1 and key = 'news:handicap'`, [user.id]))
+    && !(await q1('select 1 from user_flags where user_id = $1 and key = $2', [user.id, `league-hcap:${league.id}`]));
   const names = (r) => (r.users.length > 3 ? `${r.users.length} players` : r.users.map((u) => u.display_name).join(' & '));
 
   // ---- Results for the chosen day, game by game ----
@@ -152,6 +159,23 @@ export default async function LeaguePage({ params, searchParams }) {
           {p.user_id === user.id ? ': a result you post still counts in your other leagues.' : '.'}{p.reason ? ` Reason: ${p.reason}` : ''}
         </p>
       ))}
+      {hcapPopup && (() => {
+        const myStart = thisWeekHandicap[user.id] ?? 0, mine = formNow[user.id], ids = Object.keys(formNow);
+        const low = ids.length ? Math.min(...ids.map((i) => formNow[i].perDay)) : null;
+        const set = overrides.some((o) => o.user_id === user.id);
+        return (
+          <OncePopup layer={65} flag={`league-hcap:${league.id}`} title={`⚖️ Your handicap in ${league.name}`} tone={myStart < 0 ? 'bad' : 'good'}
+            link={{ href: `${base}?view=handicap`, label: 'See the Handicap table' }}>
+            <p className="handicap-big">You start this week on <b>{myStart < 0 ? `−${-myStart}` : '0'}</b></p>
+            {set ? <p>The admin set your start for this league.</p>
+              : mine && low !== null ? (myStart < 0
+                ? <p>You average <b>{mine.perDay.toFixed(1)}</b> points a day here and the lowest average is <b>{low.toFixed(1)}</b>, so you start {(mine.perDay - low).toFixed(1)} a day × 7 days × 75% behind.</p>
+                : <p>You have the lowest average here ({mine.perDay.toFixed(1)} a day), so everyone else starts behind you. Go get them!</p>)
+              : <p>You don&apos;t have 2 days of results here yet, so you start on 0. Your handicap is worked out from next Monday.</p>}
+            <p className="muted small">{decides === 'handicap' ? '🏆 The Handicap table decides who wins the week here.' : '🏆 The real table still decides who wins the week here; the Handicap table is for bragging rights.'}</p>
+          </OncePopup>
+        );
+      })()}
       {openBallotWeek(today) && (
         <Link href={`${base}/vote`} className="card notice">
           <span>🗳️ <b>Vote on next week&apos;s games.</b> Open until Sunday 11:59pm. Two &quot;no&quot; votes and a game is out.</span>

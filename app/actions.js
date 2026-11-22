@@ -409,6 +409,15 @@ export async function dismissVotePrompt(fd) {
   revalidatePath('/', 'layout');
 }
 
+/* ---------- one-off pop-ups ---------- */
+
+export async function dismissFlag(fd) {
+  const user = await requireUser();
+  const key = str(fd, 'key');
+  if (/^[a-z0-9:-]{1,60}$/.test(key)) await q('insert into user_flags (user_id, key) values ($1, $2) on conflict do nothing', [user.id, key]);
+  revalidatePath('/', 'layout');
+}
+
 /* ---------- pop-up moments ---------- */
 
 export async function dismissMoment(fd) {
