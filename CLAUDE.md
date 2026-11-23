@@ -8,3 +8,8 @@ Commits, code, comments, docs and questions to the user stay in full sentences, 
 
 The skills in `.claude/skills/` (caveman, ultracave, megacave) come from
 https://github.com/JuliusBrussee/caveman (Apache-2.0, see `.claude/skills/caveman/LICENSE`).
+
+## Marketing materials
+
+Lead with **Krillion** in all marketing (TikTok videos, slides, screenshots, captions, example pastes): it is the
+game the friend group plays and talks about. Don't use Wordle as the example game.
