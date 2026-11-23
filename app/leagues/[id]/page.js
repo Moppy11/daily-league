@@ -231,7 +231,7 @@ export default async function LeaguePage({ params, searchParams }) {
                   <th title="Position in the league"><span className="wide-only">Position</span><span className="narrow-only">Rank</span></th>
                   <th className="left">Player</th>
                   <th title="Results posted">Played</th>
-                  <th title="Games won (best result of the day)">Wins</th>
+                  {view !== 'handicap' && <th title="Games won (best result of the day)">Wins</th>}
                   {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : view === 'week' ? <th title="Points earned so far today">Today</th> : null}
                   {view === 'handicap' && <th title="Where this player started the week: 75% of how far ahead of last place they finished last week">Start</th>}
                   <th title="Total points">Points</th>
@@ -250,7 +250,7 @@ export default async function LeaguePage({ params, searchParams }) {
                     </td>
                     <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link></td>
                     <td>{r.played}</td>
-                    <td>{r.wins}</td>
+                    {view !== 'handicap' && <td>{r.wins}</td>}
                     {view === 'all'
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
                       : view === 'week' ? <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td> : null}
@@ -260,7 +260,7 @@ export default async function LeaguePage({ params, searchParams }) {
                         {formNow[r.user.id] && <small className="muted form-line">{formNow[r.user.id].perDay.toFixed(1)} a day · {formNow[r.user.id].days}d</small>}
                       </td>
                     )}
-                    <td className="pts-cell">{r.total}{r.penalty > 0 && <small className="penalty" title={`${r.penalty} points taken off by the admin`}> −{r.penalty}</small>}</td>
+                    <td className="pts-cell">{r.total < 0 ? `−${-r.total}` : r.total}{r.penalty > 0 && <small className="penalty" title={`${r.penalty} points taken off by the admin`}> −{r.penalty}</small>}</td>
                   </tr>
                 ))}
               </tbody>
