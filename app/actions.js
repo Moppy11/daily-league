@@ -267,6 +267,16 @@ export async function submitScore(fd) {
     if (score === null) fail('/', `Enter a valid ${game.name} score.`);
     manual = true;
   }
+  // Games with no share text (Kabloom) need their picture with the score, so the league can check it.
+  let proof = null;
+  if (game.proofRequired) {
+    const file = fd.get('image');
+    if (!file || typeof file.arrayBuffer !== 'function' || !file.size) fail('/', `Add the ${game.name} picture with your score: it's the only proof there is.`);
+    if (file.size > 900_000) fail('/', 'That picture is too large.');
+    proof = Buffer.from(await file.arrayBuffer());
+    if (proof.length < 100 || proof[0] !== 0xff || proof[1] !== 0xd8) fail('/', 'That file isn\'t a picture.');
+    manual = false;                       // typing the score in is the only way for this game, so it isn't marked
+  }
 
   if (puzzleNo !== null) {
     // Reject results from a different day's puzzle.
@@ -298,6 +308,7 @@ export async function submitScore(fd) {
     [user.id, id, date, score, puzzleNo, text || null, manual, flagged]
   );
   if (!res.length) fail('/', `You've already submitted ${game.name} for ${date === today ? 'today' : prettyDate(date)}. Scores are locked once posted.`);
+  if (proof) await q(`insert into proofs (score_id, mime, data) values ($1, 'image/jpeg', $2)`, [res[0].id, proof]);
   await q('insert into user_games (user_id, game_id) values ($1, $2) on conflict do nothing', [user.id, id]);
   // Tell league-mates in every league that counts this game.
   const mates = await q(

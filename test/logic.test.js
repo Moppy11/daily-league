@@ -387,3 +387,21 @@ test('games vote: the admin can put any game in or out whatever the votes say', 
   const r3 = voteOutcome([...many.slice(0, 8), g('low', 1), g('pick', 0, 0, 'in')]);
   assert.deepEqual([r3.inIds.length, r3.tied], [10, []]);
 });
+
+test('Farflung, Plain and Kabloom', () => {
+  const ff = 'Farflung #52 · 210/500 km\nRare · Rare · Rare · Miss · Miss\nhttps://farflung.game/s/vhwszh?e=52';
+  assert.deepEqual(p('farflung', ff), { puzzleNo: 52, score: 210 });
+  assert.equal(detectGame(ff).game.id, 'farflung');
+  assert.equal(p('farflung', 'Farflung #52 · 210/500 km\nRare · Rare · Miss'), null);          // rounds cut off
+  assert.equal(p('farflung', 'Farflung #52 · 210/500 km\nRare · Great · Rare · Miss · Miss'), null);
+  assert.equal(puzzleDate(builtin('farflung'), 53), '2026-11-26');
+  const pl = 'Plain #39 ✈️ 2,768 m\n🟥🟥🟩🟥🟨🟧🟥\nCan you beat me? 👇\nhttps://playplain.app/c/4UMQUH';
+  assert.deepEqual(p('plain', pl), { puzzleNo: 39, score: 2768 });
+  assert.equal(detectGame(pl).game.id, 'plain');
+  assert.equal(p('plain', 'Plain #39 ✈️ 2,768 m\nCan you beat me?'), null);                    // no squares
+  assert.equal(expectedPuzzle(builtin('plain'), '2026-11-25'), 39);
+  const k = builtin('kabloom');
+  assert.deepEqual([parseManual(k, '4'), parseManual(k, '7'), parseManual(k, '8'), parseManual(k, '4.5')], [4, 7, null, null]);
+  assert.equal(formatScore(k, 4), '4/7');
+  assert.equal(k.proofRequired, true);
+});

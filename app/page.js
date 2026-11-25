@@ -10,6 +10,7 @@ import { standings, withPositions } from '@/lib/points';
 import { submitScore, respondInvite } from './actions';
 import { Flash, Medal } from './ui';
 import ProofUpload from './ProofUpload';
+import ProofScoreForm from './ProofScoreForm';
 import ProofLink from './ProofLink';
 import PasteBox from './PasteBox';
 import Submit from './Submit';
@@ -121,7 +122,8 @@ export default async function Home({ searchParams }) {
               {s && (s.has_proof
                 ? <ProofLink scoreId={s.id}>📷 Screenshot attached</ProofLink>
                 : <ProofUpload scoreId={s.id} />)}
-              {!s && (
+              {!s && g.proofRequired && <ProofScoreForm game={g.id} name={g.name} max={g.max} />}
+              {!s && !g.proofRequired && (
                 <form action={submitScore} className="stack">
                   <input type="hidden" name="game" value={g.id} />
                   {g.parse ? (
