@@ -53,7 +53,7 @@ export default async function RootLayout({ children }) {
         )}
         {votes.length > 0 && <VotePrompt prompts={votes} />}
         <header className="top">
-          <Link href="/" className="brand"><img src="/logo.svg" alt="" width="26" height="26" /> Daily League</Link>
+          <Link href="/" className="brand"><img src="/logo.png" alt="" width="26" height="26" /> Daily League</Link>
           {user && <Nav username={user.username} alerts={alerts} />}
           {user && <Link href="/settings" className="link" aria-label="Settings" title="Settings">⚙️</Link>}
           {user && <LogoutButton />}
