@@ -17,6 +17,16 @@ import Submit from '../../Submit';
 import ProofLink from '../../ProofLink';
 import OncePopup from '../../OncePopup';
 
+// In a narrow tile "645/700" becomes "645"; the full score is in the tooltip.
+// Distances drop their unit too ("4,025 m" → "4,025"); the tile's heading says it once.
+function shortScore(g, score) {
+  if ((g.type === 'points' && g.max) || (g.type === 'count' && g.unit)) {
+    const n = Number(score);
+    return n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : n.toLocaleString('en-GB');   // 44,105 → 44.1k
+  }
+  return formatScore(g, score);
+}
+
 export default async function LeaguePage({ params, searchParams }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -184,7 +194,7 @@ export default async function LeaguePage({ params, searchParams }) {
       )}
       {recapOpen && <WeeklyRecap recap={recap} league={league} me={user.id} dismiss />}
 
-      <div className="cols">
+      <div className="league-main">
         <div>
           <div className="table-head">
             <h2>League table</h2>
@@ -200,8 +210,12 @@ export default async function LeaguePage({ params, searchParams }) {
                 <tr>
                   <th title="Position in the league"><span className="wide-only">Position</span><span className="narrow-only">Rank</span></th>
                   <th className="left">Player</th>
-                  <th title="Results posted">Played</th>
-                  {view !== 'handicap' && <th title="Games won (best result of the day)">Wins</th>}
+                  <th title="Results posted" className={view === 'handicap' ? '' : 'wide-only'}>Played</th>
+                  {view !== 'handicap' && <>
+                    <th title="Games won (best result of the day)" className="medal-col">🥇</th>
+                    <th title="Second places" className="medal-col">🥈</th>
+                    <th title="Third places" className="medal-col">🥉</th>
+                  </>}
                   {view === 'all' ? <th title="Weeks finished top">Weeks won</th> : view === 'week' ? <th title="Points earned so far today">Today</th> : null}
                   {view === 'handicap' && <th title="Where this player started the week: 75% of how far ahead of last place they finished last week">Start</th>}
                   <th title="Total points">Points</th>
@@ -219,8 +233,12 @@ export default async function LeaguePage({ params, searchParams }) {
                       )}
                     </td>
                     <td className="left name"><Link href={`/u/${r.user.username}`}>{r.user.display_name}</Link></td>
-                    <td>{r.played}</td>
-                    {view !== 'handicap' && <td>{r.wins}</td>}
+                    <td className={view === 'handicap' ? '' : 'wide-only'}>{r.played}</td>
+                    {view !== 'handicap' && <>
+                      <td className="medal-col">{r.wins || <span className="muted">–</span>}</td>
+                      <td className="medal-col">{r.seconds || <span className="muted">–</span>}</td>
+                      <td className="medal-col">{r.thirds || <span className="muted">–</span>}</td>
+                    </>}
                     {view === 'all'
                       ? <td>{weekWins[r.user.id] ?? <span className="muted">–</span>}</td>
                       : view === 'week' ? <td className={todayPts[r.user.id] ? 'plus-cell' : 'muted'}>{todayPts[r.user.id] ? `+${todayPts[r.user.id]}` : '–'}</td> : null}
@@ -287,7 +305,13 @@ export default async function LeaguePage({ params, searchParams }) {
             <h2>{date === today ? "Today's results" : prettyDate(date)}</h2>
             {date < today ? <Link href={href({ date: addDays(date, 1) })} aria-label="Next day">→</Link> : <span />}
           </div>
-          {gameList.map((g) => {
+          {(() => {
+            const played = gameList.filter((g) => dayScores.some((x) => x.game_id === g.id));
+            const empty = gameList.filter((g) => !dayScores.some((x) => x.game_id === g.id));
+            return (<>
+          {played.length === 0 && <p className="muted small">No results{date === today ? ' yet today' : ' that day'}.</p>}
+          <div className="boards">
+          {played.map((g) => {
             const entries = dayScores.filter((s) => s.game_id === g.id);
             const ranked = rankDay(entries, g.higherBetter, weights[g.id] ?? 1);
             entries.sort((a, b) => ranked.get(a.user_id).rank - ranked.get(b.user_id).rank);
@@ -295,10 +319,9 @@ export default async function LeaguePage({ params, searchParams }) {
             return (
               <section className="card game-board" key={g.id}>
                 <div className="game-board-head">
-                  <h3>{g.emoji} {g.name}{weights[g.id] > 1 && <small className="muted"> ×{weights[g.id]}</small>}</h3>
-                  {date === today && !mineToday.has(g.id) && g.url && <a className="btn small" href={g.url} target="_blank" rel="noreferrer">Play ↗</a>}
+                  <h3>{g.emoji} {g.name}{g.type === 'count' && g.unit && <small className="muted"> ({g.unit})</small>}{weights[g.id] > 1 && <small className="muted"> ×{weights[g.id]}</small>}</h3>
+                  {date === today && !mineToday.has(g.id) && g.url && <a className="btn small" href={g.url} target="_blank" rel="noreferrer" aria-label={`Play ${g.name}`}>↗</a>}
                 </div>
-                {entries.length === 0 && <p className="muted small">No results{date === today ? ' yet' : ''}.</p>}
                 <ol className="board">
                   {entries.map((s) => {
                     const f = flags[s.id];
@@ -309,7 +332,7 @@ export default async function LeaguePage({ params, searchParams }) {
                           <Link className="player grow" href={`/u/${byId[s.user_id].username}`}>{byId[s.user_id].display_name}</Link>
                           {s.manual && <span className="mark" title={s.pasted ? 'Edited after pasting, not verified' : 'Typed by hand, not verified'}>✍️</span>}
                           {s.flagged && <span className="mark" title="Puzzle number differs from other players">⚠️</span>}
-                          <b className="board-score">{formatScore(g, s.score)}</b>
+                          <b className="board-score" title={formatScore(g, s.score)}>{shortScore(g, s.score)}</b>
                           <details className="flag">
                             <summary className={f ? 'raised' : ''} title="Check or query this result" aria-label={`Check ${byId[s.user_id].display_name}'s result`}>⚑{f ? <small>{f.n}</small> : null}</summary>
                             <div className="flag-panel">
@@ -354,13 +377,36 @@ export default async function LeaguePage({ params, searchParams }) {
                   <form action={nudge} className="waiting row">
                     <input type="hidden" name="league" value={league.id} />
                     <input type="hidden" name="game" value={g.id} />
-                    <span className="muted small grow">Still to play: {waiting.map((m) => m.display_name).join(', ')}</span>
-                    {waiting.some((m) => m.id !== user.id) && <Submit className="link">⏰ Remind</Submit>}
+                    <span className="muted small grow">⏳ {waiting.map((m) => m.display_name).join(', ')}</span>
+                    {waiting.some((m) => m.id !== user.id) && <Submit className="link" aria-label={`Remind them to play ${g.name}`}>⏰</Submit>}
                   </form>
                 )}
               </section>
             );
           })}
+          </div>
+          {empty.length > 0 && (
+            <section className="card still-to-play">
+              <h3>{date === today ? 'Nobody has played yet' : 'Nobody played'}</h3>
+              <ul>
+                {empty.map((g) => (
+                  <li key={g.id}>
+                    <span className="grow">{g.emoji} {g.name}{weights[g.id] > 1 && <small className="muted"> ×{weights[g.id]}</small>}</span>
+                    {date === today && <>
+                      <form action={nudge}>
+                        <input type="hidden" name="league" value={league.id} />
+                        <input type="hidden" name="game" value={g.id} />
+                        <Submit className="link" aria-label={`Remind everyone to play ${g.name}`}>⏰ Remind</Submit>
+                      </form>
+                      {g.url && <a className="btn small" href={g.url} target="_blank" rel="noreferrer">Play ↗</a>}
+                    </>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+            </>);
+          })()}
         </div>
       </div>
 
@@ -425,6 +471,10 @@ export default async function LeaguePage({ params, searchParams }) {
                 {records.league.posted && <><dt>Most results posted</dt><dd><b>{records.league.posted.value}</b> {names(records.league.posted)}</dd></>}
               </dl>
             </section>
+          </div>
+          <details className="records-more">
+            <summary>Records for each game ({records.perGame.filter((r) => planned(r.game.id)).length})</summary>
+          <div className="grid records">
             {records.perGame.filter((r) => planned(r.game.id)).map((r) => (
               <section className="card" key={r.game.id}>
                 <h3>{r.game.emoji} {r.game.name}</h3>
@@ -438,6 +488,7 @@ export default async function LeaguePage({ params, searchParams }) {
               </section>
             ))}
           </div>
+          </details>
         </>
       )}
 
