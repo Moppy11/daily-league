@@ -334,7 +334,7 @@ export default async function LeaguePage({ params, searchParams }) {
                           {s.flagged && <span className="mark" title="Puzzle number differs from other players">⚠️</span>}
                           <b className="board-score" title={formatScore(g, s.score)}>{shortScore(g, s.score)}</b>
                           <details className="flag">
-                            <summary className={f ? 'raised' : 'info'} title={f ? 'Queried: see the details' : 'More details'} aria-label={`More details on ${byId[s.user_id].display_name}'s result`}>{f ? <>⚑<small>{f.n}</small></> : 'ⓘ'}</summary>
+                            <summary className={f ? 'raised' : 'info'} title={f ? 'Queried: see the details' : 'More details'} aria-label={`More details on ${byId[s.user_id].display_name}'s result`}>{f ? <>⚑<small>{f.n}</small></> : '🔍'}</summary>
                             <div className="flag-panel">
                               {s.manual && <p className="small">{s.pasted ? '✍️ Edited after pasting, so it can\'t be verified.' : '✍️ Typed by hand, so it can\'t be verified.'}</p>}
                               {f && <p className="small queried">Queried by {f.n} player{f.n === 1 ? '' : 's'}.</p>}
