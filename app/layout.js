@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getUser, userToday, userHour } from '@/lib/auth';
 import { unreadCount, remainingToday } from '@/lib/notify';
 import LogoutButton from './LogoutButton';
+import ThemeToggle from './ThemeToggle';
 import TzSync from './TzSync';
 import { siteOrigin } from '@/lib/site';
 import Nav from './Nav';
@@ -39,7 +40,11 @@ export default async function RootLayout({ children }) {
     if ((await userHour()) >= 18 && (await remainingToday(user.id, await userToday())).length) alerts++;
   }
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply a saved light/dark choice before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}" }} />
+      </head>
       <body>
         <TzSync />
         {user && <AlertWatcher />}
@@ -55,6 +60,7 @@ export default async function RootLayout({ children }) {
         <header className="top">
           <Link href="/" className="brand"><img src="/logo.png" alt="" width="26" height="26" /> Daily League</Link>
           {user && <Nav username={user.username} alerts={alerts} />}
+          <ThemeToggle />
           {user && <Link href="/settings" className="link" aria-label="Settings" title="Settings">⚙️</Link>}
           {user && <LogoutButton />}
         </header>

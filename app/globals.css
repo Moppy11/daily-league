@@ -2,13 +2,24 @@
   --bg: #e6e9ef; --card: #ffffff; --text: #16181d; --muted: #5d6472; --line: #cfd5de; --field: #f3f5f8;
   --shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 1px 3px rgba(16, 24, 40, .06);
   --accent: #2f6bff; --accent-text: #ffffff; --soft: #eaf0ff; --ok: #12805c; --err: #c0392b; --gold: #b7791f;
+  --chart: #2f6bff;
 }
+/* Dark colours: from the device's own setting, unless the player picked light or dark with the switch
+   (saved on the device, set on <html data-theme> before the page paints). */
+:root { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --field: #0f1115; --shadow: none;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark; --field: #0f1115; --shadow: none;
     --bg: #0f1115; --card: #191c22; --text: #eceef2; --muted: #9aa1ae; --line: #2a2f38;
     --accent: #6b95ff; --accent-text: #0b0e14; --soft: #1e2740; --ok: #4fd1a5; --err: #ff8a7a; --gold: #f0c36a;
+    --chart: #5b86f7;
   }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark; --field: #0f1115; --shadow: none;
+  --bg: #0f1115; --card: #191c22; --text: #eceef2; --muted: #9aa1ae; --line: #2a2f38;
+  --accent: #6b95ff; --accent-text: #0b0e14; --soft: #1e2740; --ok: #4fd1a5; --err: #ff8a7a; --gold: #f0c36a;
+  --chart: #5b86f7;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -290,8 +301,6 @@ a.link { text-decoration: none; font-size: 1.05rem; }
 .prose ul { padding-left: 1.2em; margin: 0; display: grid; gap: 4px; }
 
 /* ---- admin ---- */
-:root { --chart: #2f6bff; }
-@media (prefers-color-scheme: dark) { :root { --chart: #5b86f7; } }
 .admin-stats { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 .chart svg { width: 100%; height: auto; display: block; }
 .chart .bar { fill: var(--chart); }
@@ -461,3 +470,21 @@ a.play-chip:hover { border-color: var(--accent); }
 .records-more { margin-top: 10px; }
 .records-more > summary { padding: 8px 0; font-weight: 600; color: var(--text); }
 .records-more .grid { margin-top: 6px; }
+
+/* The light / dark switch in the top bar. */
+.theme-switch { position: relative; width: 52px; height: 28px; flex: none; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--field); cursor: pointer; padding: 0; }
+.theme-switch .knob { position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: var(--card);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25); display: grid; place-items: center; font-size: 13px; line-height: 1; transition: transform .2s; }
+.theme-switch[aria-checked="true"] .knob { transform: translateX(24px); }
+.theme-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .theme-switch .knob { transition: none; } }
+.theme-switch[aria-checked="true"] { background: var(--soft); border-color: var(--accent); }
+.theme-switch[aria-checked="true"] .knob { background: #3a4252; }
+/* Tablets and small laptops: menu labels go under their icons so the top bar (with the light/dark switch) fits. */
+@media (min-width: 720px) and (max-width: 1099px) {
+  .tabs a { flex-direction: column; gap: 0; font-size: .72rem; padding: 4px 8px; }
+  .tabs a span { font-size: 1.15rem; }
+  .badge { position: absolute; top: 0; right: 2px; margin: 0; }
+}
+.brand { white-space: nowrap; }
