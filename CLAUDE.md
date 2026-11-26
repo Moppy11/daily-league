@@ -15,3 +15,7 @@ https://github.com/JuliusBrussee/caveman (Apache-2.0, see `.claude/skills/cavema
 the friend group plays and talks about, and the posts that lead with it do best. Don't use Wordle as the example game.
 Aim for a rough mix of about three Krillion-led posts to two that show the other daily games a league can post
 (open with Krillion, then show the rest), and end every slideshow on the site with a nod to the other games.
+
+The TikTok account's profile picture is `marketing/tiktok-profile.png` (the crowned podium with game grids and fish).
+Use it as the logo in every TikTok slideshow (the promo slide at the end). The site's own icons (`app/icon.png`,
+`public/logo.png`) are a simpler pixel podium; don't swap one for the other.
