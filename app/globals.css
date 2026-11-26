@@ -457,26 +457,7 @@ a.play-chip:hover { border-color: var(--accent); }
 .once-text p { margin: 6px 0; }
 .handicap-big { font-size: 1.3rem; text-align: center; margin: 4px 0 10px; }
 
-/* League page: the table across the top, then today's games as small tiles side by side. */
-.league-main > div + div { margin-top: 8px; }
-.medal-col { width: 2.2em; text-align: center; }
-.boards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); align-items: start; }
-.boards .game-board { margin: 0; padding: 10px 12px; min-width: 0; }
-.boards .game-board-head h3 { font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.boards .game-board-head .btn { padding: 2px 8px; font-size: .78rem; }
-.boards .board { margin-top: 6px; }
-.boards .board-row { gap: 6px; padding: 5px 0; font-size: .9rem; }
-.boards .board-row .player { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.boards .waiting { padding-top: 6px; }
-.boards .waiting .small { font-size: .76rem; }
-/* Checking or querying a result needs room: that tile takes the whole row while it's open. */
-.boards .game-board:has(details.flag[open]) { grid-column: 1 / -1; }
-.still-to-play { margin-top: 10px; }
-.still-to-play h3 { font-size: .95rem; margin: 0 0 6px; }
-.still-to-play ul { list-style: none; margin: 0; padding: 0; }
-.still-to-play li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
-.still-to-play li:first-child { border-top: 0; }
+/* League records: the per-game cards fold away behind one tap. */
 .records-more { margin-top: 10px; }
 .records-more > summary { padding: 8px 0; font-weight: 600; color: var(--text); }
 .records-more .grid { margin-top: 6px; }
-@media (min-width: 960px) { .boards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
