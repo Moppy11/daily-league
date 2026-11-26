@@ -22,23 +22,6 @@ export default function Landing({ example }) {
         </div>
       </section>
 
-      <section className="walkthrough">
-        <div className="phone">
-          {/* A recording of the real site: a Krillion result copied, pasted, posted, then ranked in a league. */}
-          <video src="/walkthrough.mp4" poster="/walkthrough.jpg" autoPlay muted loop playsInline preload="metadata"
-            aria-label="Video: copying a Krillion result, pasting it into Daily League, and seeing it ranked in a league" />
-        </div>
-        <div>
-          <h2>Post a result in 10 seconds</h2>
-          <ol className="steps">
-            <li>Finish Krillion, or any of our daily games, and tap <b>Share</b>.</li>
-            <li>Paste it into Daily League.</li>
-            <li>We check it&apos;s today&apos;s puzzle and lock it in.</li>
-            <li>Your league table updates straight away.</li>
-          </ol>
-        </div>
-      </section>
-
       <div className="cols">
         <section>
           <h2>Try it: paste a result</h2>
@@ -90,6 +73,23 @@ export default function Landing({ example }) {
         <li><b>Your stats.</b> Averages, bests, streaks, badges and history for every game you play.</li>
         <li><b>Works like an app.</b> Add it to your home screen and switch on notifications.</li>
       </ul>
+
+      <section className="walkthrough">
+        <div className="phone">
+          {/* A recording of the real site: a Krillion result copied, pasted, posted, then ranked in a league. */}
+          <video src="/walkthrough.mp4" poster="/walkthrough.jpg" autoPlay muted loop playsInline preload="metadata"
+            aria-label="Video: copying a Krillion result, pasting it into Daily League, and seeing it ranked in a league" />
+        </div>
+        <div>
+          <h2>Post a result in 10 seconds</h2>
+          <ol className="steps">
+            <li>Finish Krillion, or any of our daily games, and tap <b>Share</b>.</li>
+            <li>Paste it into Daily League.</li>
+            <li>We check it&apos;s today&apos;s puzzle and lock it in.</li>
+            <li>Your league table updates straight away.</li>
+          </ol>
+        </div>
+      </section>
     </div>
   );
 }

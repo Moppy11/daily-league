@@ -99,7 +99,7 @@ details[open] summary { margin-bottom: 8px; }
 .hero { text-align: center; padding: 36px 0; }
 .hero h1 { font-size: 2rem; }
 .hero > p { color: var(--muted); max-width: 480px; margin: 12px auto 20px; }
-.walkthrough { display: grid; gap: 20px 32px; align-items: center; justify-items: center; margin: 0 auto 28px; max-width: 760px; }
+.walkthrough { display: grid; gap: 20px 32px; align-items: center; justify-items: center; margin: 28px auto; max-width: 760px; }
 .walkthrough .phone { width: min(280px, 78vw); border-radius: 30px; padding: 8px; background: #12151c; box-shadow: 0 18px 40px rgba(0,0,0,.25); }
 .walkthrough video { display: block; width: 100%; aspect-ratio: 600 / 1298; border-radius: 23px; background: var(--bg); }
 .walkthrough h2 { margin-top: 0; }
