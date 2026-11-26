@@ -345,6 +345,7 @@ a.play-chip:hover { border-color: var(--accent); }
 .flag > summary::-webkit-details-marker { display: none; }
 .flag > summary:hover, .flag[open] > summary { border-color: var(--line); color: var(--text); }
 .flag > summary.raised { color: var(--err); }
+.flag > summary.info { font-size: 1rem; line-height: 1; padding: 2px 4px; }   /* ⓘ: the pasted text, screenshot and query options */
 .flag > summary small { margin-left: 2px; }
 .flag-panel { margin: 6px 0 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); }
 .board li:has(.flag[open]) .board-row { padding-bottom: 0; }
